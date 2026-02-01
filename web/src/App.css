@@ -1,0 +1,590 @@
+/* ── Design tokens ── */
+:root {
+  --bg:             #0a0a0a;
+  --surface:        rgba(255, 255, 255, 0.04);
+  --surface-hover:  rgba(255, 255, 255, 0.07);
+  --text:           #e0e0e0;
+  --text-muted:     #666;
+  --border:         rgba(255, 255, 255, 0.08);
+  --border-hover:   rgba(255, 255, 255, 0.14);
+  --accent:         #34d399;
+  --accent-dim:     rgba(52, 211, 153, 0.15);
+  --accent-glow:    rgba(52, 211, 153, 0.25);
+  --status-todo:    #e2b340;
+  --status-progress:#4d9de0;
+  --status-done:    #34d399;
+  --danger:         #ff6b6b;
+  --danger-bg:      rgba(255, 60, 60, 0.08);
+  --danger-border:  rgba(255, 60, 60, 0.2);
+  --radius:         12px;
+  --radius-sm:      8px;
+  --blur:           12px;
+}
+
+/* ── Reset ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 2rem 2rem 0;
+}
+
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin-bottom: 1.25rem;
+  color: var(--text);
+}
+
+/* ── Filter pills ── */
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.filter-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.4rem 0.85rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+}
+
+.filter-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.filter-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-glow);
+}
+
+/* ── Error banner ── */
+.error {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  animation: slideIn 0.25s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Decision cards ── */
+.decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 4.5rem;
+}
+
+.decision-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.decision-group:hover {
+  border-color: var(--border-hover);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.decision-group-expanded {
+  border-color: var(--accent-glow);
+  box-shadow: 0 0 12px var(--accent-dim);
+}
+
+.decision-card {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem 0.35rem;
+  background: transparent;
+  border: none;
+}
+
+/* ── Compact details summary ── */
+.details-summary-row {
+  padding: 0 1rem 0.4rem 2.85rem;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-summary-text {
+  color: var(--text-muted);
+}
+
+.details-summary-placeholder {
+  color: var(--text-muted);
+  opacity: 0.45;
+  font-style: italic;
+}
+
+/* ── Card toggle row ── */
+.card-toggles {
+  display: flex;
+  border-top: 1px solid var(--border);
+}
+
+.toggle-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.3rem 1rem;
+  text-align: left;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.toggle-btn + .toggle-btn {
+  border-left: 1px solid var(--border);
+}
+
+.toggle-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.toggle-btn-open {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── Details panel (expanded) ── */
+.details-panel {
+  padding: 0.5rem 1rem 0.6rem;
+  border-top: 1px solid var(--border);
+  animation: slideIn 0.15s ease-out;
+}
+
+.details-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.detail-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  min-width: 4.5rem;
+  flex-shrink: 0;
+}
+
+.detail-value {
+  color: var(--text);
+}
+
+.detail-placeholder {
+  color: var(--text-muted);
+  opacity: 0.45;
+  font-style: italic;
+}
+
+.btn-edit {
+  align-self: flex-start;
+  margin-top: 0.3rem;
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+}
+
+.btn-edit:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+/* ── Details edit form ── */
+.details-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.detail-edit-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.detail-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  transition: border-color 0.15s ease;
+}
+
+.detail-input:focus {
+  outline: none;
+  border-color: var(--accent-glow);
+}
+
+.detail-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.detail-edit-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.btn-save {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-glow);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+}
+
+.btn-save:hover:not(:disabled) {
+  background: var(--accent-glow);
+}
+
+.btn-cancel {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+/* ── Status dot ── */
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: box-shadow 0.2s ease;
+}
+
+.status-dot-todo {
+  background: var(--status-todo);
+  box-shadow: 0 0 6px rgba(226, 179, 64, 0.3);
+}
+
+.status-dot-progress {
+  background: var(--status-progress);
+  box-shadow: 0 0 6px rgba(77, 157, 224, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot-done {
+  background: var(--status-done);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
+}
+
+.decision-card:hover .status-dot {
+  box-shadow: 0 0 12px currentColor;
+}
+
+.decision-card:hover .status-dot-todo  { box-shadow: 0 0 12px rgba(226, 179, 64, 0.5); }
+.decision-card:hover .status-dot-progress { box-shadow: 0 0 12px rgba(77, 157, 224, 0.5); }
+.decision-card:hover .status-dot-done  { box-shadow: 0 0 12px rgba(52, 211, 153, 0.5); }
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.3); opacity: 0.7; }
+}
+
+/* ── Decision content ── */
+.decision-title {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.decision-id {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-right: -0.25rem;
+  min-width: 1.5rem;
+}
+
+/* ── Empty state ── */
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* ── Buttons ── */
+.btn {
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  transition: transform 0.1s ease, opacity 0.2s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-start {
+  background: rgba(77, 157, 224, 0.15);
+  color: var(--status-progress);
+  border: 1px solid rgba(77, 157, 224, 0.2);
+}
+
+.btn-start:hover:not(:disabled) {
+  background: rgba(77, 157, 224, 0.25);
+}
+
+.btn-done {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-glow);
+}
+
+.btn-done:hover:not(:disabled) {
+  background: var(--accent-glow);
+}
+
+.btn-add {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-glow);
+  padding: 0.55rem 1.1rem;
+  font-size: 0.85rem;
+}
+
+.btn-add:hover:not(:disabled) {
+  background: var(--accent-glow);
+}
+
+/* ── Add bar (sticky) ── */
+.add-bar {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 0.75rem 0 1rem;
+  border-top: 1px solid var(--border);
+  margin-top: -0.5rem;
+}
+
+/* ── Add form ── */
+.add-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-form input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  transition: border-color 0.2s ease;
+}
+
+.add-form input:focus {
+  outline: none;
+  border-color: var(--accent-glow);
+}
+
+.add-form input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Summary ── */
+.summary {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Suggestions panel ── */
+.suggestions-panel {
+  padding: 0.5rem 1rem 0.6rem;
+  border-top: 1px solid var(--border);
+  animation: slideIn 0.15s ease-out;
+}
+
+.btn-generate {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+}
+
+.btn-generate:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.suggestions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+}
+
+.suggestion-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.25rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.suggestion-card:hover {
+  background: var(--surface-hover);
+}
+
+.suggestion-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.suggestion-title {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.suggestion-rationale {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.btn-add-suggestion {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-glow);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.btn-add-suggestion:hover:not(:disabled) {
+  background: var(--accent-glow);
+}
+
+/* ── Header row ── */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.header-row h1 {
+  margin-bottom: 0;
+}
+
+.btn-reset {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--danger-border);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+}
+
+.btn-reset:hover:not(:disabled) {
+  background: rgba(255, 60, 60, 0.15);
+}
+
+/* ── Clarity ring ── */
+.clarity-ring {
+  flex-shrink: 0;
+}
+
+/* ── Suggestion actions ── */
+.suggestion-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.btn-apply-suggestion {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.btn-apply-suggestion:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

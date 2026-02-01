@@ -1,0 +1,6 @@
+node_modules
+dist
+.tasks.json
+api/node_modules
+web/node_modules
+web/dist
