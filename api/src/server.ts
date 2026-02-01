@@ -117,13 +117,19 @@ app.post("/suggestions", (req, res) => {
     res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "id and title are required" } });
     return;
   }
-  const suggestions = generateSuggestions({
-    id: Number(id),
-    title,
-    outcome: typeof req.body.outcome === "string" ? req.body.outcome : undefined,
-    metric: typeof req.body.metric === "string" ? req.body.metric : undefined,
-    horizon: typeof req.body.horizon === "string" ? req.body.horizon : undefined,
-  });
+  const tracker = loadTracker();
+  const listResult = tracker.listTasks();
+  const allDecisions = listResult.ok ? listResult.value : [];
+  const suggestions = generateSuggestions(
+    {
+      id: Number(id),
+      title,
+      outcome: typeof req.body.outcome === "string" ? req.body.outcome : undefined,
+      metric: typeof req.body.metric === "string" ? req.body.metric : undefined,
+      horizon: typeof req.body.horizon === "string" ? req.body.horizon : undefined,
+    },
+    allDecisions,
+  );
   res.json({ ok: true, value: { suggestions } });
 });
 

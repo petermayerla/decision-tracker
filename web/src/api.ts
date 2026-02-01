@@ -22,6 +22,7 @@ type ApiResult<T> =
 type Suggestion = {
   title: string;
   rationale: string;
+  kind?: string;
   outcome?: string;
   metric?: string;
   horizon?: string;
