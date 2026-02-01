@@ -108,6 +108,7 @@ open http://localhost:5173
 | `PORT` | _(set by Render)_ | Render provides this automatically |
 | `STORE_PATH` | `/var/data/.tasks.json` | Use a Render Disk mounted at `/var/data` |
 | `ALLOWED_ORIGINS` | `https://your-app.vercel.app` | Comma-separated if multiple origins |
+| `ANTHROPIC_API_KEY` | `sk-ant-...` | Optional. Enables LLM-powered suggestions via Claude. Without it, deterministic fallback is used. |
 
 Build command: `cd api && npm install`
 Start command: `cd api && npx tsx src/server.ts`
