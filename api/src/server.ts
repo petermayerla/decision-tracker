@@ -7,11 +7,25 @@ import { getSuggestions } from "../../src/suggestions.js";
 import { generateSuggestions } from "./decision-suggestions.js";
 
 const app = express();
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
   : ["http://localhost:5173"];
 
-app.use(cors({ origin: allowedOrigins }));
+const vercelPattern = /^https:\/\/decision-tracker.*\.vercel\.app$/;
+
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    if (vercelPattern.test(origin)) return cb(null, true);
+    console.warn(`CORS blocked: ${origin}`);
+    cb(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+  optionsSuccessStatus: 204,
+}));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
