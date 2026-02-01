@@ -153,6 +153,96 @@ function buildTemplates(d: DecisionInput, dtype: DecisionType): Template[] {
   return templates;
 }
 
+// ── Contextual validation builder ──
+
+function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Suggestion {
+  const n = normalize(d.title);
+  const isComplete = !!(d.outcome && d.metric && d.horizon);
+
+  if (isActionPrefixed(d.title)) {
+    return {
+      title: `Write a 1-sentence definition of done for "${n}"`,
+      rationale: "A clear done-check prevents action items from lingering without closure.",
+      kind: "validation",
+    };
+  }
+
+  if (dtype === "habit") {
+    if (isComplete) {
+      return {
+        title: `Write down your top 3 relapse triggers for "${n}"`,
+        rationale: "Naming triggers in advance makes them manageable when they appear.",
+        kind: "validation",
+      };
+    }
+    return {
+      title: `Answer: what environment change would make "${n}" easier?`,
+      rationale: "Environment design outperforms willpower — identify one change you can make today.",
+      kind: "validation",
+    };
+  }
+
+  if (dtype === "study") {
+    return {
+      title: `Ask yourself: can I explain the core concept in 2 sentences?`,
+      rationale: "If you can't explain it simply, you don't understand it well enough yet.",
+      kind: "validation",
+    };
+  }
+
+  if (dtype === "vendor") {
+    return {
+      title: `Ask: what's the cost of choosing wrong? Write it down`,
+      rationale: "Quantifying downside risk clarifies how much diligence this vendor choice deserves.",
+      kind: "validation",
+    };
+  }
+
+  if (dtype === "product") {
+    if (isComplete) {
+      return {
+        title: `Identify the riskiest assumption behind "${n}" and design a 30-min test`,
+        rationale: "Untested assumptions are the #1 cause of wasted build time.",
+        kind: "validation",
+      };
+    }
+    return {
+      title: `Answer: if this feature fails, what signal will tell you first?`,
+      rationale: "Knowing the failure signal early means you can course-correct before launch.",
+      kind: "validation",
+    };
+  }
+
+  if (dtype === "strategy") {
+    if (isComplete) {
+      return {
+        title: `Run a 5-min pre-mortem: assume "${n}" failed — write down why`,
+        rationale: "Pre-mortems surface blind spots that optimism hides.",
+        kind: "validation",
+      };
+    }
+    return {
+      title: `Ask one stakeholder: does this strategy match your expectation?`,
+      rationale: "Early misalignment is cheap to fix — late misalignment kills strategies.",
+      kind: "validation",
+    };
+  }
+
+  // general fallback
+  if (isComplete) {
+    return {
+      title: `List 3 things that would make you abandon "${n}" — write them down`,
+      rationale: "Kill criteria prevent sunk-cost traps and keep decisions honest.",
+      kind: "validation",
+    };
+  }
+  return {
+    title: `Answer: what's the single biggest risk to "${n}"?`,
+    rationale: "Naming the top risk forces clarity and often reveals the real next step.",
+    kind: "validation",
+  };
+}
+
 // ── Main ──
 
 export function generateSuggestions(
@@ -328,26 +418,42 @@ export function generateSuggestions(
     }
   }
 
-  // ─── Deduplicate and return max 3 (prefer 3, allow 4 if reuse adds value) ───
+  // ─── 7) Contextual validation suggestion (always include one) ───
+  candidates.push(buildValidationSuggestion(decision, dtype))
+
+  // ─── Deduplicate: pick up to 2 non-validation, then 1 validation, optionally 1 reuse ───
   const seen = new Set<string>();
   const unique: Suggestion[] = [];
+
+  // First pass: pick up to 2 non-validation suggestions
   for (const s of candidates) {
+    if (unique.length >= 2) break;
+    if (s.kind === "validation") continue;
     const key = s.title.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(s);
-    if (unique.length >= 3) break;
   }
 
-  // Allow a 4th only if it's a reuse/follow-up suggestion not yet included
-  if (unique.length === 3) {
-    for (const s of candidates) {
-      const key = s.title.toLowerCase();
-      if (seen.has(key)) continue;
-      if (s.kind === "follow-up") {
-        unique.push(s);
-        break;
-      }
+  // Guaranteed validation slot
+  for (const s of candidates) {
+    if (s.kind !== "validation") continue;
+    const key = s.title.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(s);
+    break;
+  }
+
+  // Allow a 4th if it's a reuse/follow-up
+  for (const s of candidates) {
+    if (unique.length >= 4) break;
+    const key = s.title.toLowerCase();
+    if (seen.has(key)) continue;
+    if (s.kind === "follow-up" || s.kind === "reuse") {
+      seen.add(key);
+      unique.push(s);
+      break;
     }
   }
 
@@ -375,6 +481,7 @@ Guidelines:
 - Never suggest "break into steps" for decisions that already start with "Action:"
 - Limit output to a maximum of 4 suggestions
 - Deduplicate ideas aggressively
+- ALWAYS include exactly ONE suggestion with kind "validation" (see below)
 
 Suggestion kinds (use exactly these values):
 - "outcome"       → clarifies what success looks like
@@ -382,7 +489,18 @@ Suggestion kinds (use exactly these values):
 - "horizon"       → adds a deadline or time boundary
 - "execution"     → concrete next actions or steps
 - "reuse"         → reuse structure from a similar past decision
-- "validation"    → checks assumptions, risks, or acceptance criteria
+- "validation"    → a reflective question or quick check that surfaces risks, tests assumptions, or sharpens commitment
+
+IMPORTANT — validation suggestion rules:
+- Every response MUST contain exactly one "validation" suggestion.
+- It must be phrased as a concrete action the user can take immediately (a question to answer, a quick check, a 5-minute test).
+- It must be contextual to THIS decision's title, status, and existing fields — never generic.
+- Do NOT include outcome/metric/horizon fields on validation suggestions unless proposing a concrete value.
+- Examples of good validation suggestions:
+  - "Answer: what's the single biggest risk to this decision?"
+  - "List 3 things that would make you abandon this — write them down"
+  - "Ask one stakeholder: does this outcome match your expectation?"
+  - "Spend 5 min writing what failure looks like — does your metric catch it?"
 
 Output format:
 Return ONLY valid JSON. Do not include any text outside JSON.
