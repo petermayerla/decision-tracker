@@ -7,6 +7,8 @@ export type Task = {
   outcome?: string;
   metric?: string;
   horizon?: string;
+  parentId?: number;
+  kind?: "goal" | "action";
 };
 
 export type TaskPatch = {
@@ -31,8 +33,10 @@ export class TaskTracker {
   private tasks = new Map<number, Task>();
   private nextId = 1;
 
-  addTask(title: string): Task {
-    const task: Task = { id: this.nextId++, title, status: "todo" };
+  addTask(title: string, opts?: { parentId?: number; kind?: "goal" | "action" }): Task {
+    const kind = opts?.kind ?? (opts?.parentId ? "action" : "goal");
+    const task: Task = { id: this.nextId++, title, status: "todo", kind };
+    if (opts?.parentId) task.parentId = opts.parentId;
     this.tasks.set(task.id, task);
     return { ...task };
   }

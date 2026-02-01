@@ -10,8 +10,8 @@ import { Result } from "./result.js";
 export class SafeTaskTracker {
   private tracker = new TaskTracker();
 
-  addTask(title: string): Result<Task> {
-    return { ok: true, value: this.tracker.addTask(title) };
+  addTask(title: string, opts?: { parentId?: number; kind?: "goal" | "action" }): Result<Task> {
+    return { ok: true, value: this.tracker.addTask(title, opts) };
   }
 
   updateTask(id: number, patch: TaskPatch): Result<Task> {

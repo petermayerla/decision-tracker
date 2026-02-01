@@ -45,18 +45,28 @@ app.get("/tasks", (req, res) => {
     result.value = result.value.filter((t) => t.status === status);
   }
 
+  const parentId = req.query.parentId;
+  if (parentId !== undefined) {
+    const pid = Number(parentId);
+    result.value = result.value.filter((t) => t.parentId === pid);
+  }
+
   res.json(result);
 });
 
 app.post("/tasks", (req, res) => {
-  const { title } = req.body;
+  const { title, parentId, kind } = req.body;
   if (!title || typeof title !== "string") {
     res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "title is required" } });
     return;
   }
+  if (parentId !== undefined && typeof parentId !== "number") {
+    res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "parentId must be a number" } });
+    return;
+  }
 
   const tracker = loadTracker();
-  const result = tracker.addTask(title);
+  const result = tracker.addTask(title, { parentId, kind });
   if (result.ok) saveTracker(tracker);
   res.status(result.ok ? 201 : 400).json(result);
 });
@@ -147,12 +157,13 @@ app.get("/suggestions", (req, res) => {
 });
 
 app.post("/reset", (_req, res) => {
-  const seeds = [
-    { title: "Decide on Q3 pricing strategy", status: "todo" as const, outcome: "Pricing approved by leadership", metric: "Revenue impact ($)", horizon: "end of June" },
-    { title: "Choose analytics vendor", status: "in-progress" as const, outcome: "Vendor contract signed", metric: "Integration time (days)", horizon: "2 weeks" },
-    { title: "Finalise onboarding flow", status: "done" as const, outcome: "New users complete onboarding", metric: "Completion rate (%)", horizon: "last sprint" },
+  const json = [
+    { id: 1, title: "Decide on Q3 pricing strategy", status: "todo" as const, outcome: "Pricing approved by leadership", metric: "Revenue impact ($)", horizon: "end of June", kind: "goal" as const },
+    { id: 2, title: "Research competitor pricing", status: "todo" as const, parentId: 1, kind: "action" as const },
+    { id: 3, title: "Draft pricing tiers document", status: "todo" as const, parentId: 1, kind: "action" as const },
+    { id: 4, title: "Choose analytics vendor", status: "in-progress" as const, outcome: "Vendor contract signed", metric: "Integration time (days)", horizon: "2 weeks", kind: "goal" as const },
+    { id: 5, title: "Finalise onboarding flow", status: "done" as const, outcome: "New users complete onboarding", metric: "Completion rate (%)", horizon: "last sprint", kind: "goal" as const },
   ];
-  const json = seeds.map((s, i) => ({ id: i + 1, ...s }));
   writeFileSync(STORE_PATH, JSON.stringify(json, null, 2) + "\n");
   res.json({ ok: true, value: json });
 });

@@ -156,10 +156,10 @@ export function App() {
     }
   };
 
-  const handleAddSuggestion = async (suggestionTitle: string) => {
+  const handleAddSuggestion = async (suggestionTitle: string, parentId: number) => {
     setError(null);
     setBusy(true);
-    const result = await addDecision(`Action: ${suggestionTitle}`);
+    const result = await addDecision(suggestionTitle, { parentId, kind: "action" });
     setBusy(false);
     if (result.ok) load();
     else setError(result.error.message);
@@ -187,15 +187,16 @@ export function App() {
       {error && <div className="error">{error}</div>}
 
       <div className="decision-list">
-        {decisions.length === 0 ? (
+        {decisions.filter((d) => !d.parentId).length === 0 ? (
           <div className="empty">No decisions yet.</div>
         ) : (
-          decisions.map((d) => {
+          decisions.filter((d) => !d.parentId).map((d) => {
             const isExpanded = expandedId === d.id;
             const isEditing = editingId === d.id;
             const hasDetails = !!(d.outcome || d.metric || d.horizon);
             const isSuggestionsOpen = suggestionsExpandedId === d.id;
             const suggestions = suggestionsMap[d.id];
+            const childActions = decisions.filter((a) => a.parentId === d.id);
             return (
               <div key={d.id} className={isExpanded || isSuggestionsOpen ? "decision-group decision-group-expanded" : "decision-group"}>
                 <div className="decision-card">
@@ -292,7 +293,7 @@ export function App() {
                               <button
                                 className="btn btn-add-suggestion"
                                 disabled={busy}
-                                onClick={() => handleAddSuggestion(s.title)}
+                                onClick={() => handleAddSuggestion(s.title, d.id)}
                               >
                                 + Add
                               </button>
@@ -303,6 +304,23 @@ export function App() {
                     )}
                   </div>
                 )}
+
+                {childActions.length > 0 && (
+                  <div className="action-list">
+                    {childActions.map((a) => (
+                      <div key={a.id} className="action-item">
+                        <span className={STATUS_DOT[a.status]} />
+                        <span className="action-title">{a.title}</span>
+                        {a.status === "todo" && (
+                          <button className="btn btn-start" disabled={busy} onClick={() => handleStart(a.id)}>Start</button>
+                        )}
+                        {a.status === "in-progress" && (
+                          <button className="btn btn-done" disabled={busy} onClick={() => handleDone(a.id)}>Done</button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })
@@ -310,9 +328,12 @@ export function App() {
       </div>
 
       <p className="summary">
-        {decisions.length === 0
-          ? "0 decisions"
-          : `${decisions.length} decisions (${decisions.filter((d) => d.status === "todo").length} todo, ${decisions.filter((d) => d.status === "in-progress").length} in-progress, ${decisions.filter((d) => d.status === "done").length} done) \u00b7 Avg clarity ${Math.round(decisions.reduce((sum, d) => sum + clarityScore(d), 0) / decisions.length)}%`}
+        {(() => {
+          const goals = decisions.filter((d) => !d.parentId);
+          const actions = decisions.filter((d) => d.parentId);
+          if (goals.length === 0) return "0 goals";
+          return `${goals.length} goals, ${actions.length} actions (${goals.filter((d) => d.status === "todo").length} todo, ${goals.filter((d) => d.status === "in-progress").length} in-progress, ${goals.filter((d) => d.status === "done").length} done) \u00b7 Avg clarity ${Math.round(goals.reduce((sum, d) => sum + clarityScore(d), 0) / goals.length)}%`;
+        })()}
       </p>
 
       <div className="add-bar">

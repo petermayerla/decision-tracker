@@ -580,6 +580,34 @@ h1 {
   border-color: var(--border-hover);
 }
 
+/* ── Action list (nested under goals) ── */
+.action-list {
+  border-top: 1px solid var(--border);
+  padding: 0.4rem 1rem 0.5rem 2.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.2rem 0.25rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  transition: background 0.15s ease;
+}
+
+.action-item:hover {
+  background: var(--surface-hover);
+}
+
+.action-title {
+  flex: 1;
+  color: var(--text);
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

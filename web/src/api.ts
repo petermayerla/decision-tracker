@@ -7,6 +7,8 @@ type Decision = {
   outcome?: string;
   metric?: string;
   horizon?: string;
+  parentId?: number;
+  kind?: "goal" | "action";
 };
 
 type DecisionPatch = {
@@ -36,11 +38,11 @@ export async function fetchDecisions(status?: string): Promise<ApiResult<Decisio
   return res.json();
 }
 
-export async function addDecision(title: string): Promise<ApiResult<Decision>> {
+export async function addDecision(title: string, opts?: { parentId?: number; kind?: "goal" | "action" }): Promise<ApiResult<Decision>> {
   const res = await fetch(`${BASE}/tasks`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ title, ...opts }),
   });
   return res.json();
 }

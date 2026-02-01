@@ -19,7 +19,7 @@ export function loadTracker(): SafeTaskTracker {
   // addTask auto-increments IDs starting at 1, so we rely on
   // the saved array being sorted by ID with no gaps.
   for (const task of tasks) {
-    tracker.addTask(task.title);
+    tracker.addTask(task.title, { parentId: task.parentId, kind: task.kind });
     if (task.status === "in-progress" || task.status === "done") {
       tracker.startTask(task.id);
     }
