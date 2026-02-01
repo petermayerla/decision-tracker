@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { loadTracker, saveTracker, STORE_PATH } from "../../src/store.js";
 import { TaskStatus } from "../../src/task-tracker.js";
 import { getSuggestions } from "../../src/suggestions.js";
-import { generateSuggestions } from "./decision-suggestions.js";
+import { generateSuggestionsLLM } from "./decision-suggestions.js";
 
 const app = express();
 
@@ -111,7 +111,7 @@ app.post("/tasks/:id/done", (req, res) => {
   res.status(result.ok ? 200 : 400).json(result);
 });
 
-app.post("/suggestions", (req, res) => {
+app.post("/suggestions", async (req, res) => {
   const { id, title } = req.body;
   if (!id || !title || typeof title !== "string") {
     res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "id and title are required" } });
@@ -120,10 +120,11 @@ app.post("/suggestions", (req, res) => {
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allDecisions = listResult.ok ? listResult.value : [];
-  const suggestions = generateSuggestions(
+  const suggestions = await generateSuggestionsLLM(
     {
       id: Number(id),
       title,
+      status: req.body.status,
       outcome: typeof req.body.outcome === "string" ? req.body.outcome : undefined,
       metric: typeof req.body.metric === "string" ? req.body.metric : undefined,
       horizon: typeof req.body.horizon === "string" ? req.body.horizon : undefined,
