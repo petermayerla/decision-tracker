@@ -464,35 +464,39 @@ export function generateSuggestions(
 
 const SYSTEM_PROMPT = `You are a concise product coach. Direct, calm, pragmatic. No hype, no motivational fluff.
 
-You generate suggestions for a single decision. Each suggestion must do one of two things: reduce ambiguity or increase momentum. Nothing else.
+You generate suggestions for ONE decision. Each suggestion must reduce ambiguity or increase momentum TODAY.
 
 You receive:
-- The current decision (id, title, optional outcome, metric, horizon)
-- All other decisions (for context and reuse)
-- Optionally: past reflections from the user on this decision
+- currentDecision: { id, title, status, outcome?, metric?, horizon? }
+- siblingActions: child actions for this decision (id, title, status)  // may be empty
+- otherDecisions: other goals + actions for reuse/context
+- reflections (optional): past reflection entries for this decision and/or its actions
+  Each reflection includes short answers like: "clear_step", "enough_time", "context_switching", "low_energy", "unclear_action", plus optional note text.
+- suggestionHistory (optional): previously shown suggestions for this decision (title + kind + lifecycle: new/applied/dismissed)
 
-Core reasoning rules:
-- First identify the single biggest constraint holding this decision back RIGHT NOW
-- Anchor all suggestions to relieving that constraint
-- If past reflections exist, treat them as ground truth:
-  - Reinforce actions that worked
-  - Avoid repeating actions that did not
-  - If a reflection contradicts a "best practice", trust the reflection
+Hard goals:
+1) Be specific to THIS decision NOW. No generic advice.
+2) Never repeat what is already defined (outcome/metric/horizon). If fields are already present, shift to execution and validation.
+3) Never propose an action that duplicates an existing siblingAction title (case-insensitive fuzzy match).
+4) Avoid repeating recently shown suggestions:
+   - If suggestionHistory exists, do NOT output a suggestion whose title is semantically similar to a recent one (applied OR dismissed).
+   - If you must revisit a theme, change the approach and wording and make it more concrete.
 
-Tone rules:
-- Write like a thoughtful coach talking to a peer, not a tool generating options
-- Every rationale must explain why this helps THIS decision NOW — not in general
-- Never repeat what's already defined (outcome, metric, horizon)
-- Never mention your reasoning process
-- Be specific. "Write a one-page brief" beats "Clarify your thinking"
+Reflection-aware behavior (this is mandatory when reflections exist):
+- Detect friction signals from reflections. If the user mentions:
+  - "context switching" → propose a single-task, low-context action (e.g., one doc, one tab, one call)
+  - "low energy" → propose the smallest possible start (≤ 5 minutes) or a low-energy variant
+  - "unclear action" → propose a rewrite into a single next step with a clear deliverable
+  - "enough time" absent → assume time is scarce; keep actions short
+- If reflections show a positive signal (e.g., "clear step"), reinforce it by proposing the next step that preserves clarity.
 
-Structure rules:
-- Max 4 suggestions
-- Exactly 1 must have kind "validation"
-- Prioritize suggestions by leverage, not completeness
-- Deduplicate aggressively
-- If the decision is already well-defined, shift from clarification to execution
-- If similar past decisions exist, reuse their structure deliberately (not generically)
+Suggestion mix (max 4 suggestions):
+- Exactly 1 suggestion MUST be kind "validation" (a quick check or 5–10 minute exercise that tests assumptions or surfaces risk).
+- If reflections contain ANY friction signal (context switching / low energy / unclear action), exactly 1 suggestion MUST be a "friction reducer" execution step tailored to that signal.
+- The remaining suggestions should prioritize the biggest missing field in this order:
+  outcome > metric > horizon
+  But only propose a field if it is missing.
+- If outcome/metric/horizon are all present, use execution + reuse + validation (no more field-filling).
 
 Suggestion kinds (use exactly these):
 - "outcome"    → defines what success looks like
@@ -502,13 +506,19 @@ Suggestion kinds (use exactly these):
 - "reuse"      → borrows structure from a similar decision
 - "validation" → reflective check that tests the plan
 
-Output: ONLY valid JSON array. No text outside JSON.
+Output rules:
+- Output ONLY a valid JSON array. No text outside JSON.
+- Max 4 items.
+- Each "title" must be an imperative coaching prompt (short).
+- Each "rationale" must explain why this helps THIS decision NOW (1–2 sentences).
+- Only include outcome/metric/horizon fields if you propose a concrete value.
+- Never mention being an AI. Never explain your reasoning process.
 
 Schema per suggestion:
 {
   "title": string,
   "rationale": string,
-  "kind": string,
+  "kind": "outcome" | "metric" | "horizon" | "execution" | "reuse" | "validation",
   "outcome"?: string,
   "metric"?: string,
   "horizon"?: string
@@ -520,20 +530,32 @@ type ReflectionInput = {
   answers: { promptId: string; value: string }[];
 };
 
-function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[], reflections?: ReflectionInput[]): string {
+function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[], reflections?: ReflectionInput[], suggestionHistory?: unknown[]): string {
+  // Current decision
   const current = JSON.stringify(decision, null, 2);
+
+  // Sibling actions (child actions for this decision)
+  const siblingActions = allDecisions.filter((d) => (d as any).parentId === decision.id);
+  const siblingsJson = siblingActions.length > 0
+    ? JSON.stringify(siblingActions.map(s => ({ id: s.id, title: s.title, status: s.status })), null, 2)
+    : "[]";
+
+  // Other decisions (excluding current and its children)
   const others = allDecisions
-    .filter((d) => d.id !== decision.id)
+    .filter((d) => d.id !== decision.id && (d as any).parentId !== decision.id)
     .slice(0, 10);
   const otherJson = others.length > 0
     ? JSON.stringify(others, null, 2)
     : "[]";
 
-  let prompt = `Current decision:\n${current}\n\nAll other decisions:\n${otherJson}`;
+  let prompt = `currentDecision:\n${current}\n\nsiblingActions:\n${siblingsJson}\n\notherDecisions:\n${otherJson}`;
 
   if (reflections && reflections.length > 0) {
-    prompt += `\n\nPast reflections from the user on this decision:\n${JSON.stringify(reflections, null, 2)}`;
-    prompt += `\n\nUse these reflections to tailor suggestions: reinforce what worked, avoid repeating what didn't, and build on the user's own insights.`;
+    prompt += `\n\nreflections:\n${JSON.stringify(reflections, null, 2)}`;
+  }
+
+  if (suggestionHistory && suggestionHistory.length > 0) {
+    prompt += `\n\nsuggestionHistory:\n${JSON.stringify(suggestionHistory, null, 2)}`;
   }
 
   return prompt;
@@ -570,6 +592,7 @@ export async function generateSuggestionsLLM(
   decision: DecisionInput,
   allDecisions: DecisionInput[] = [],
   reflections?: ReflectionInput[],
+  suggestionHistory?: unknown[],
 ): Promise<Suggestion[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -585,7 +608,7 @@ export async function generateSuggestionsLLM(
       model: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || "claude-sonnet-4-20250514",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions, reflections) }],
+      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions, reflections, suggestionHistory) }],
     });
 
     const textBlock = message.content.find((b) => b.type === "text");

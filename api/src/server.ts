@@ -162,6 +162,9 @@ app.post("/suggestions", async (req, res) => {
   const requestReflections = Array.isArray(req.body.reflections) ? req.body.reflections : [];
   const allReflections = [...reflectionsInput, ...requestReflections];
 
+  // Optional suggestionHistory from request body
+  const suggestionHistory = Array.isArray(req.body.suggestionHistory) ? req.body.suggestionHistory : undefined;
+
   const suggestions = await generateSuggestionsLLM(
     {
       id: decisionId,
@@ -173,6 +176,7 @@ app.post("/suggestions", async (req, res) => {
     },
     allDecisions,
     allReflections.length > 0 ? allReflections : undefined,
+    suggestionHistory,
   );
   res.json({ ok: true, value: { suggestions } });
 });
