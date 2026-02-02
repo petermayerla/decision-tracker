@@ -38,41 +38,41 @@ type ReflectionInput = {
   answers: { promptId: string; value: string }[];
 };
 
-const BRIEFING_SYSTEM_PROMPT = `You are a calm daily impact coach.
+const BRIEFING_SYSTEM_PROMPT = `You are a concise product coach and daily execution guide. Calm, direct, pragmatic. No hype, no motivational fluff.
 
-Generate a short morning briefing for the user to make progress on their active goals today.
+You create a single "Morning Briefing" for the user to execute TODAY.
 
-You receive:
-- user: { name? }
-- goals: list of goals (each with outcome/metric/horizon and child actions with statuses)
-- reflections: past learnings (what worked / what didn't)
+Inputs you will receive:
+- userName (optional)
+- todayDate (YYYY-MM-DD)
+- goals: a list of top-level goals (each: id, title, status, optional outcome/metric/horizon)
+- actions: a list of child actions (each: id, parentId, title, status)
+- reflections (optional): past reflections for goals/actions in this system. Each reflection contains promptId and a short answer text.
 
-Rules:
-- Output must be concrete, minimal, and achievable within one day
-- Choose at most 3 focus items total
-- Each focus item must map to either:
-  (a) one existing action to start/finish today, OR
-  (b) one small action to create under a goal (if the goal has no actionable plan)
-- Avoid generic advice and motivational fluff
-- Use the user's reflections as ground truth
-- If a goal is ambiguous, prioritize one clarity move (e.g., define metric) but keep it small
+Your job:
+1) Select 2 focus goals max:
+   - Prefer goals that are already in-progress OR have a near horizon OR have low clarity (missing outcome/metric/horizon).
+   - Avoid goals that are done.
+2) For each selected goal, propose exactly ONE action for today:
+   - If there is an existing child action that is todo or in-progress, choose the best next one.
+   - Otherwise create a new action title that is concrete, small, and finishable today.
+3) Use reflections to personalize:
+   - Reinforce what worked, avoid what failed, and adapt to stated blockers.
+   - If the user repeatedly mentions a blocker (e.g. "context switching"), propose an action that reduces that blocker.
+4) Output must be actionable in under 15 minutes to start. The goal is momentum.
 
-Tone:
-- Direct, warm, pragmatic
-- Address the user by name if provided
-- No mention of being an AI
-
-Output: ONLY valid JSON, no extra text.
+Output format:
+Return ONLY valid JSON. No extra text.
 
 Schema:
 {
-  "greeting": string,
-  "headline": string,
+  "greeting": string,     // e.g. "Good morning, Peter"
+  "headline": string,     // short summary of why today matters
   "focus": [
     {
       "goalId": number,
       "goalTitle": string,
-      "whyNow": string,
+      "whyNow": string,   // 1 sentence, specific to this goal
       "action": {
         "type": "start_existing_action" | "finish_existing_action" | "create_new_action",
         "actionId"?: number,
@@ -81,18 +81,33 @@ Schema:
     }
   ],
   "cta": {
-    "label": "Let's do it",
-    "microcopy": string
+    "label": string,      // e.g. "Let's do it"
+    "microcopy": string   // 1 short sentence, reflection-aware if possible
   }
-}`;
+}
 
-function buildBriefingUserPrompt(goals: TaskInput[], allTasks: TaskInput[], reflections?: ReflectionInput[]): string {
+Constraints:
+- focus length: 2 items.
+- Every whyNow must be specific to the selected goal and current state.
+- Avoid repeating the goal title in actionTitle verbatim.
+- If userName is missing, use a generic greeting.
+- Keep it crisp. No paragraphs. No bullet lists.`;
+
+function buildBriefingUserPrompt(goals: TaskInput[], allTasks: TaskInput[], reflections?: ReflectionInput[], userName?: string): string {
+  const todayDate = new Date().toISOString().split('T')[0];
+
   const goalsWithActions = goals.map((g) => {
     const actions = allTasks.filter((t) => t.parentId === g.id);
     return { ...g, actions };
   });
 
-  let prompt = `Active goals with actions:\n${JSON.stringify(goalsWithActions, null, 2)}`;
+  let prompt = `Today's date: ${todayDate}\n`;
+
+  if (userName) {
+    prompt += `User name: ${userName}\n`;
+  }
+
+  prompt += `\nActive goals with actions:\n${JSON.stringify(goalsWithActions, null, 2)}`;
 
   if (reflections && reflections.length > 0) {
     prompt += `\n\nPast reflections:\n${JSON.stringify(reflections, null, 2)}`;
@@ -169,7 +184,7 @@ export function generateBriefingDeterministic(goals: TaskInput[], allTasks: Task
       if (b.status === "in-progress" && a.status !== "in-progress") return 1;
       return clarityScore(b) - clarityScore(a);
     })
-    .slice(0, 3);
+    .slice(0, 2);  // Max 2 focus goals
 
   const focus: BriefingFocusItem[] = active.map((g) => {
     const actions = allTasks.filter((t) => t.parentId === g.id);
@@ -221,8 +236,7 @@ export async function generateBriefingLLM(
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey });
 
-    const userPrompt = buildBriefingUserPrompt(goals, allTasks, reflections)
-      + (userName ? `\n\nUser's name: ${userName}` : "");
+    const userPrompt = buildBriefingUserPrompt(goals, allTasks, reflections, userName);
 
     const message = await client.messages.create({
       model: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || "claude-sonnet-4-20250514",
