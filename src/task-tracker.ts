@@ -53,11 +53,44 @@ export class TaskTracker {
   }
 
   startTask(id: number): Task {
-    return this.transition(id, "todo", "in-progress");
+    const task = this.transition(id, "todo", "in-progress");
+
+    // If this task has a parent (it's an action), ensure parent goal is in-progress
+    if (task.parentId) {
+      const parent = this.tasks.get(task.parentId);
+      if (parent && parent.status === "todo") {
+        parent.status = "in-progress";
+      }
+    }
+
+    return task;
   }
 
   completeTask(id: number): Task {
-    return this.transition(id, "in-progress", "done");
+    const task = this.transition(id, "in-progress", "done");
+
+    // If this task has a parent, check if all siblings are done
+    if (task.parentId) {
+      const parent = this.tasks.get(task.parentId);
+      if (parent) {
+        const siblings = this.listTasks().filter((t) => t.parentId === task.parentId);
+        const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done");
+
+        if (allDone) {
+          // All child actions complete, mark parent goal as done
+          if (parent.status === "in-progress") {
+            parent.status = "done";
+          }
+        } else {
+          // Some actions still pending, ensure parent is in-progress
+          if (parent.status === "todo") {
+            parent.status = "in-progress";
+          }
+        }
+      }
+    }
+
+    return task;
   }
 
   private transition(id: number, fromStatus: TaskStatus, toStatus: TaskStatus): Task {

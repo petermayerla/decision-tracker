@@ -355,27 +355,20 @@ export function App() {
     setError(null);
     setBusy(true);
     const result = await startDecision(id);
+    setBusy(false);
 
     if (result.ok) {
-      // If this is an action with a parent goal, ensure parent is in-progress
-      const task = result.value;
-      if (task.parentId) {
-        const parent = decisions.find((d) => d.id === task.parentId);
-        if (parent && parent.status === "todo") {
-          await startDecision(task.parentId);
-        }
-      }
       await load();
     } else {
       setError(result.error.message);
     }
-    setBusy(false);
   };
 
   const handleDone = async (id: number) => {
     setError(null);
     setBusy(true);
     const result = await completeDecision(id);
+    setBusy(false);
 
     if (result.ok) {
       const task = result.value;
@@ -398,23 +391,10 @@ export function App() {
         setShowReflectionPrompt(true);
       }
 
-      // Check if all sibling actions are done, if so mark parent as done
-      if (task.parentId) {
-        await load();
-        const updatedDecisions = (await fetchDecisions()).ok ? (await fetchDecisions()).value : decisions;
-        const siblings = updatedDecisions.filter((d) => d.parentId === task.parentId);
-        const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done");
-
-        if (allDone) {
-          await completeDecision(task.parentId);
-        }
-      }
-
       await load();
     } else {
       setError(result.error.message);
     }
-    setBusy(false);
   };
 
   const handleSaveDetails = async (id: number, patch: DecisionPatch) => {
