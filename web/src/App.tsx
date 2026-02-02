@@ -355,13 +355,22 @@ export function App() {
     setError(null);
     setBusy(true);
     const result = await startDecision(id);
-    setBusy(false);
 
     if (result.ok) {
+      // Client-side safety net: if this is an action, also try to start parent goal
+      const task = result.value;
+      if (task.parentId) {
+        try {
+          await startDecision(task.parentId);
+        } catch {
+          // Ignore errors - backend is source of truth
+        }
+      }
       await load();
     } else {
       setError(result.error.message);
     }
+    setBusy(false);
   };
 
   const handleDone = async (id: number) => {
@@ -617,6 +626,7 @@ export function App() {
     const newDismissed = { ...briefingDismissed, [todayKey]: true };
     setBriefingDismissed(newDismissed);
     saveBriefingDismissed(newDismissed);
+    setBriefing(null);
   };
 
   const handleReflectionSubmit = () => {
@@ -666,7 +676,17 @@ export function App() {
     setBriefingLoading(true);
     setError(null);
 
-    const allReflections = Object.values(reflectionStore);
+    // Combine goal completion reflections with quick reflections
+    const goalReflections = Object.values(reflectionStore);
+
+    // Convert quick reflections to Reflection format
+    const quickReflections = reflectionsStore.quick.map((qr) => ({
+      decisionId: qr.goalId || 0,
+      createdAt: qr.date,
+      answers: [{ promptId: qr.promptId, value: qr.response }],
+    }));
+
+    const allReflections = [...goalReflections, ...quickReflections];
     const result = await fetchBriefing(allReflections.length > 0 ? allReflections : undefined, userName || undefined);
     setBriefingLoading(false);
 
@@ -833,7 +853,14 @@ export function App() {
 
               {commitments[getTodayKey()] && (
                 <div className="commitment-confirmed">
-                  ✓ Committed for today
+                  <span>✓ Committed for today</span>
+                  <button
+                    className="btn btn-dismiss-briefing"
+                    onClick={handleDismissBriefing}
+                    title="Close"
+                  >
+                    ×
+                  </button>
                 </div>
               )}
             </div>
