@@ -2,6 +2,7 @@ node_modules
 dist
 .tasks.json
 api/node_modules
+api/data/
 web/node_modules
 web/dist
 .env

@@ -1275,6 +1275,16 @@ h1 {
   max-width: 500px;
 }
 
+.reflection-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+}
+
 .reflection-modal input {
   width: 100%;
 }
@@ -1869,6 +1879,18 @@ h1 {
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.wizard-error {
+  width: 100%;
+  color: var(--danger);
+  font-size: 0.85rem;
+  padding: 0.75rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
 }
 
 @media (min-width: 768px) {

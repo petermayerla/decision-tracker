@@ -67,15 +67,17 @@ type ReflectionData = {
   createdAt: string;
   goalId: number;
   actionId?: number;
-  signals: string[];
+  signals?: string[];
   note?: string;
+  answers?: Array<{ promptId: string; value: string }>;
 };
 
 type ReflectionInput = {
   goalId: number;
   actionId?: number;
-  signals: string[];
+  signals?: string[];
   note?: string;
+  answers?: Array<{ promptId: string; value: string }>;
 };
 
 export type { SuggestionLifecycle, RawSuggestion, ReflectionAnswer, Reflection, BriefingFocusItem, MorningBriefing, ReflectionData, ReflectionInput };

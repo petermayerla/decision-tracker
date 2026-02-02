@@ -132,10 +132,39 @@ app.post("/suggestions", async (req, res) => {
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allDecisions = listResult.ok ? listResult.value : [];
-  const reflections = Array.isArray(req.body.reflections) ? req.body.reflections : undefined;
+
+  // Load reflections for this decision from store (last 14 days)
+  const decisionId = Number(id);
+  const storedReflections = listReflections({ goalId: decisionId, sinceDays: 14 });
+
+  // Map to ReflectionInput format
+  const reflectionsInput = storedReflections.map((ref) => {
+    const answers: Array<{ promptId: string; value: string }> = [];
+
+    if (ref.signals && ref.signals.length > 0) {
+      answers.push({ promptId: "signals", value: ref.signals.join(", ") });
+    }
+    if (ref.note) {
+      answers.push({ promptId: "note", value: ref.note });
+    }
+    if (ref.answers && ref.answers.length > 0) {
+      answers.push(...ref.answers);
+    }
+
+    return {
+      decisionId: ref.goalId,
+      createdAt: ref.createdAt,
+      answers,
+    };
+  });
+
+  // Merge with reflections from request body (backward compatibility)
+  const requestReflections = Array.isArray(req.body.reflections) ? req.body.reflections : [];
+  const allReflections = [...reflectionsInput, ...requestReflections];
+
   const suggestions = await generateSuggestionsLLM(
     {
-      id: Number(id),
+      id: decisionId,
       title,
       status: req.body.status,
       outcome: typeof req.body.outcome === "string" ? req.body.outcome : undefined,
@@ -143,7 +172,7 @@ app.post("/suggestions", async (req, res) => {
       horizon: typeof req.body.horizon === "string" ? req.body.horizon : undefined,
     },
     allDecisions,
-    reflections,
+    allReflections.length > 0 ? allReflections : undefined,
   );
   res.json({ ok: true, value: { suggestions } });
 });
@@ -169,14 +198,30 @@ app.post("/briefing", async (req, res) => {
   const storedReflections = listReflections({ sinceDays: 14 });
 
   // Map to ReflectionInput format expected by generateBriefingLLM
-  const reflectionsInput = storedReflections.map((ref) => ({
-    decisionId: ref.goalId,
-    createdAt: ref.createdAt,
-    answers: [
-      { promptId: "signals", value: ref.signals.join(", ") },
-      ...(ref.note ? [{ promptId: "note", value: ref.note }] : []),
-    ],
-  }));
+  const reflectionsInput = storedReflections.map((ref) => {
+    const answers: Array<{ promptId: string; value: string }> = [];
+
+    // If reflection has signals, add them
+    if (ref.signals && ref.signals.length > 0) {
+      answers.push({ promptId: "signals", value: ref.signals.join(", ") });
+    }
+
+    // If reflection has note, add it
+    if (ref.note) {
+      answers.push({ promptId: "note", value: ref.note });
+    }
+
+    // If reflection has answers (prompt-based), add them
+    if (ref.answers && ref.answers.length > 0) {
+      answers.push(...ref.answers);
+    }
+
+    return {
+      decisionId: ref.goalId,
+      createdAt: ref.createdAt,
+      answers,
+    };
+  });
 
   const userName = typeof req.body.userName === "string" ? req.body.userName : undefined;
   const briefing = await generateBriefingLLM(allTasks, reflectionsInput, userName);
@@ -184,9 +229,9 @@ app.post("/briefing", async (req, res) => {
 });
 
 app.post("/reflections", (req, res) => {
-  const { goalId, actionId, signals, note } = req.body;
+  const { goalId, actionId, signals, note, answers } = req.body;
 
-  const result = appendReflection({ goalId, actionId, signals, note });
+  const result = appendReflection({ goalId, actionId, signals, note, answers });
   res.status(result.ok ? 201 : 400).json(result);
 });
 

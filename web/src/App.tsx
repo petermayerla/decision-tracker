@@ -643,31 +643,65 @@ export function App() {
     setBriefing(null);
   };
 
-  const handleReflectionSubmit = () => {
+  const handleReflectionSubmit = async () => {
     if (!reflectionPromptData || !reflectionInput.trim()) {
       setShowReflectionPrompt(false);
       setReflectionInput("");
       return;
     }
 
-    const newReflection: QuickReflection = {
-      date: getTodayKey(),
-      goalId: reflectionPromptData.goalId,
+    setError(null);
+    setBusy(true);
+
+    // Submit to API
+    const input: ReflectionInput = {
+      goalId: reflectionPromptData.goalId!,
       actionId: reflectionPromptData.actionId,
-      promptId: reflectionPromptData.promptId,
-      response: reflectionInput.trim(),
+      answers: [
+        {
+          promptId: reflectionPromptData.promptId,
+          value: reflectionInput.trim(),
+        },
+      ],
     };
 
-    const updated = {
-      ...reflectionsStore,
-      quick: [...reflectionsStore.quick, newReflection],
-    };
-    setReflectionsStore(updated);
-    saveReflections(updated);
+    const result = await submitReflection(input);
+    setBusy(false);
 
-    setShowReflectionPrompt(false);
-    setReflectionInput("");
-    setReflectionPromptData(null);
+    if (result.ok) {
+      // Also save to localStorage for backward compatibility
+      const newReflection: QuickReflection = {
+        date: getTodayKey(),
+        goalId: reflectionPromptData.goalId,
+        actionId: reflectionPromptData.actionId,
+        promptId: reflectionPromptData.promptId,
+        response: reflectionInput.trim(),
+      };
+
+      const updated = {
+        ...reflectionsStore,
+        quick: [...reflectionsStore.quick, newReflection],
+      };
+      setReflectionsStore(updated);
+      saveReflections(updated);
+
+      // Close modal
+      setShowReflectionPrompt(false);
+      setReflectionInput("");
+      setReflectionPromptData(null);
+
+      // Refresh briefing cache if it exists
+      const todayKey = getTodayKey();
+      if (briefingCache[todayKey]) {
+        const newCache = { ...briefingCache };
+        delete newCache[todayKey];
+        setBriefingCache(newCache);
+        saveBriefingCache(newCache);
+      }
+    } else {
+      setError(result.error.message);
+      // Keep modal open so user can see error
+    }
   };
 
   const handleReflectionSkip = () => {
@@ -692,13 +726,24 @@ export function App() {
     };
 
     setError(null);
+    setBusy(true);
     const result = await submitReflection(input);
+    setBusy(false);
 
     if (result.ok) {
       setShowReflectionSheet(false);
       setReflectionSheetData(null);
       setReflectionSignals([]);
       setReflectionNote("");
+
+      // Refresh briefing cache if it exists
+      const todayKey = getTodayKey();
+      if (briefingCache[todayKey]) {
+        const newCache = { ...briefingCache };
+        delete newCache[todayKey];
+        setBriefingCache(newCache);
+        saveBriefingCache(newCache);
+      }
     } else {
       setError(result.error.message);
     }
@@ -874,15 +919,17 @@ export function App() {
               type="text"
               value={reflectionInput}
               onChange={(e) => setReflectionInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleReflectionSubmit()}
+              onKeyDown={(e) => e.key === 'Enter' && !busy && handleReflectionSubmit()}
               placeholder="Your thoughts..."
               autoFocus
+              disabled={busy}
             />
+            {error && <div className="reflection-error">{error}</div>}
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <button className="btn btn-primary" onClick={handleReflectionSubmit}>
-                Save
+              <button className="btn btn-primary" onClick={handleReflectionSubmit} disabled={busy}>
+                {busy ? "Saving..." : "Save"}
               </button>
-              <button className="btn btn-secondary" onClick={handleReflectionSkip}>
+              <button className="btn btn-secondary" onClick={handleReflectionSkip} disabled={busy}>
                 Skip
               </button>
             </div>
@@ -1149,15 +1196,16 @@ export function App() {
             </div>
 
             <div className="wizard-footer">
-              <button className="btn-wizard-skip" onClick={handleReflectionSheetSkip}>
+              {error && <div className="wizard-error">{error}</div>}
+              <button className="btn-wizard-skip" onClick={handleReflectionSheetSkip} disabled={busy}>
                 Skip
               </button>
               <button
                 className="btn-wizard-continue"
                 onClick={handleReflectionSheetSave}
-                disabled={reflectionSignals.length === 0}
+                disabled={reflectionSignals.length === 0 || busy}
               >
-                Save
+                {busy ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

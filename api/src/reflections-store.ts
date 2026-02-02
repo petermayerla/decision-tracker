@@ -13,15 +13,19 @@ export type Reflection = {
   createdAt: string; // ISO date string
   goalId: number;
   actionId?: number;
-  signals: string[];
+  // Signal-based format (new reflection sheet)
+  signals?: string[];
   note?: string;
+  // Prompt-answer format (quick reflection)
+  answers?: Array<{ promptId: string; value: string }>;
 };
 
 type ReflectionInput = {
   goalId: number;
   actionId?: number;
-  signals: string[];
+  signals?: string[];
   note?: string;
+  answers?: Array<{ promptId: string; value: string }>;
 };
 
 const VALID_SIGNALS = [
@@ -70,17 +74,28 @@ export function appendReflection(
     return { ok: false, error: { message: "Invalid actionId" } };
   }
 
-  if (!Array.isArray(input.signals) || input.signals.length === 0) {
-    return { ok: false, error: { message: "signals must be a non-empty array" } };
+  // Must have either signals, note, or answers
+  const hasSignals = Array.isArray(input.signals) && input.signals.length > 0;
+  const hasNote = input.note && input.note.trim().length > 0;
+  const hasAnswers = Array.isArray(input.answers) && input.answers.length > 0;
+
+  if (!hasSignals && !hasNote && !hasAnswers) {
+    return { ok: false, error: { message: "Reflection must have signals, note, or answers" } };
   }
 
-  // Validate signals are from allowed set
-  for (const signal of input.signals) {
-    if (!VALID_SIGNALS.includes(signal)) {
-      return { ok: false, error: { message: `Invalid signal: ${signal}` } };
+  // Validate signals if provided
+  if (input.signals) {
+    if (!Array.isArray(input.signals)) {
+      return { ok: false, error: { message: "signals must be an array" } };
+    }
+    for (const signal of input.signals) {
+      if (!VALID_SIGNALS.includes(signal)) {
+        return { ok: false, error: { message: `Invalid signal: ${signal}` } };
+      }
     }
   }
 
+  // Validate note if provided
   if (input.note !== undefined) {
     if (typeof input.note !== "string") {
       return { ok: false, error: { message: "note must be a string" } };
@@ -90,14 +105,27 @@ export function appendReflection(
     }
   }
 
+  // Validate answers if provided
+  if (input.answers !== undefined) {
+    if (!Array.isArray(input.answers)) {
+      return { ok: false, error: { message: "answers must be an array" } };
+    }
+    for (const answer of input.answers) {
+      if (!answer.promptId || !answer.value) {
+        return { ok: false, error: { message: "Each answer must have promptId and value" } };
+      }
+    }
+  }
+
   // Create reflection
   const reflection: Reflection = {
     id: randomUUID(),
     createdAt: new Date().toISOString(),
     goalId: input.goalId,
     actionId: input.actionId,
-    signals: input.signals,
+    signals: input.signals?.filter(s => s) || undefined,
     note: input.note?.trim() || undefined,
+    answers: input.answers || undefined,
   };
 
   // Append to store
