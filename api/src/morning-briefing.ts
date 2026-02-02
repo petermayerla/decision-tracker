@@ -1,0 +1,240 @@
+/**
+ * Morning briefing: picks up to 3 focus items from active goals
+ * and suggests concrete actions for today.
+ */
+
+export type BriefingFocusItem = {
+  goalId: number;
+  goalTitle: string;
+  whyNow: string;
+  action: {
+    type: "start_existing_action" | "finish_existing_action" | "create_new_action";
+    actionId?: number;
+    actionTitle: string;
+  };
+};
+
+export type MorningBriefing = {
+  greeting: string;
+  headline: string;
+  focus: BriefingFocusItem[];
+  cta: { label: string; microcopy: string };
+};
+
+type TaskInput = {
+  id: number;
+  title: string;
+  status: string;
+  parentId?: number;
+  kind?: string;
+  outcome?: string;
+  metric?: string;
+  horizon?: string;
+};
+
+type ReflectionInput = {
+  decisionId: number;
+  createdAt: string;
+  answers: { promptId: string; value: string }[];
+};
+
+const BRIEFING_SYSTEM_PROMPT = `You are a calm, direct morning coach. No hype. No fluff.
+
+You produce a morning briefing that helps the user focus on what matters today.
+
+You receive:
+- Active goals with their child actions and statuses
+- Optionally: past reflections from completed goals
+
+Your job:
+1. Pick up to 3 goals that deserve attention TODAY (prioritize in-progress > todo with high clarity)
+2. For each, explain briefly why NOW is the right time (the "whyNow")
+3. Suggest one concrete action per goal:
+   - "start_existing_action" with actionId — if there's a todo action ready to start
+   - "finish_existing_action" with actionId — if there's an in-progress action close to done
+   - "create_new_action" with actionTitle — if the goal has no good next action
+
+If reflections exist, use them to tailor advice: reinforce what worked, avoid what didn't.
+
+Output ONLY valid JSON matching this schema:
+{
+  "greeting": string,       // short, warm, no emoji
+  "headline": string,       // one sentence: what today is about
+  "focus": [
+    {
+      "goalId": number,
+      "goalTitle": string,
+      "whyNow": string,
+      "action": {
+        "type": "start_existing_action" | "finish_existing_action" | "create_new_action",
+        "actionId"?: number,
+        "actionTitle": string
+      }
+    }
+  ],
+  "cta": {
+    "label": string,       // e.g. "Start your day"
+    "microcopy": string    // one encouraging line
+  }
+}`;
+
+function buildBriefingUserPrompt(goals: TaskInput[], allTasks: TaskInput[], reflections?: ReflectionInput[]): string {
+  const goalsWithActions = goals.map((g) => {
+    const actions = allTasks.filter((t) => t.parentId === g.id);
+    return { ...g, actions };
+  });
+
+  let prompt = `Active goals with actions:\n${JSON.stringify(goalsWithActions, null, 2)}`;
+
+  if (reflections && reflections.length > 0) {
+    prompt += `\n\nPast reflections:\n${JSON.stringify(reflections, null, 2)}`;
+  }
+
+  return prompt;
+}
+
+function parseBriefingResponse(text: string): MorningBriefing | null {
+  try {
+    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (
+      typeof parsed.greeting !== "string" ||
+      typeof parsed.headline !== "string" ||
+      !Array.isArray(parsed.focus) ||
+      !parsed.cta
+    ) {
+      return null;
+    }
+
+    const focus: BriefingFocusItem[] = [];
+    for (const item of parsed.focus) {
+      if (!item || typeof item !== "object") continue;
+      if (typeof item.goalId !== "number" || typeof item.goalTitle !== "string") continue;
+      if (!item.action || typeof item.action.type !== "string") continue;
+      const validTypes = ["start_existing_action", "finish_existing_action", "create_new_action"];
+      if (!validTypes.includes(item.action.type)) continue;
+      focus.push({
+        goalId: item.goalId,
+        goalTitle: item.goalTitle,
+        whyNow: typeof item.whyNow === "string" ? item.whyNow : "",
+        action: {
+          type: item.action.type,
+          actionId: typeof item.action.actionId === "number" ? item.action.actionId : undefined,
+          actionTitle: typeof item.action.actionTitle === "string" ? item.action.actionTitle : "",
+        },
+      });
+      if (focus.length >= 3) break;
+    }
+
+    if (focus.length === 0) return null;
+
+    return {
+      greeting: parsed.greeting,
+      headline: parsed.headline,
+      focus,
+      cta: {
+        label: typeof parsed.cta.label === "string" ? parsed.cta.label : "Start your day",
+        microcopy: typeof parsed.cta.microcopy === "string" ? parsed.cta.microcopy : "",
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clarityScore(t: TaskInput): number {
+  let score = 0;
+  if (t.title) score += 25;
+  if (t.outcome) score += 25;
+  if (t.metric) score += 25;
+  if (t.horizon) score += 25;
+  return score;
+}
+
+export function generateBriefingDeterministic(goals: TaskInput[], allTasks: TaskInput[]): MorningBriefing {
+  // Sort: in-progress first, then todo with highest clarity
+  const active = goals
+    .filter((g) => g.status === "in-progress" || g.status === "todo")
+    .sort((a, b) => {
+      if (a.status === "in-progress" && b.status !== "in-progress") return -1;
+      if (b.status === "in-progress" && a.status !== "in-progress") return 1;
+      return clarityScore(b) - clarityScore(a);
+    })
+    .slice(0, 3);
+
+  const focus: BriefingFocusItem[] = active.map((g) => {
+    const actions = allTasks.filter((t) => t.parentId === g.id);
+    const inProgressAction = actions.find((a) => a.status === "in-progress");
+    const todoAction = actions.find((a) => a.status === "todo");
+
+    let action: BriefingFocusItem["action"];
+    let whyNow: string;
+
+    if (inProgressAction) {
+      action = { type: "finish_existing_action", actionId: inProgressAction.id, actionTitle: inProgressAction.title };
+      whyNow = "This action is already in progress — finishing it moves the goal forward.";
+    } else if (todoAction) {
+      action = { type: "start_existing_action", actionId: todoAction.id, actionTitle: todoAction.title };
+      whyNow = g.status === "in-progress"
+        ? "This goal is active but needs its next action started."
+        : "Starting this action gets the goal moving.";
+    } else {
+      action = { type: "create_new_action", actionTitle: `Define next step for "${g.title}"` };
+      whyNow = "This goal has no actions yet — defining one makes it concrete.";
+    }
+
+    return { goalId: g.id, goalTitle: g.title, whyNow, action };
+  });
+
+  return {
+    greeting: "Good morning.",
+    headline: focus.length > 0
+      ? `You have ${focus.length} goal${focus.length > 1 ? "s" : ""} that could use attention today.`
+      : "No active goals right now.",
+    focus,
+    cta: { label: "Start your day", microcopy: "Pick one and make progress." },
+  };
+}
+
+export async function generateBriefingLLM(
+  allTasks: TaskInput[],
+  reflections?: ReflectionInput[],
+  userName?: string,
+): Promise<MorningBriefing> {
+  const goals = allTasks.filter((t) => !t.parentId && (t.status === "in-progress" || t.status === "todo"));
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return generateBriefingDeterministic(goals, allTasks);
+  }
+
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk");
+    const client = new Anthropic({ apiKey });
+
+    const userPrompt = buildBriefingUserPrompt(goals, allTasks, reflections)
+      + (userName ? `\n\nUser's name: ${userName}` : "");
+
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1024,
+      system: BRIEFING_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    const textBlock = message.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      return generateBriefingDeterministic(goals, allTasks);
+    }
+
+    const briefing = parseBriefingResponse(textBlock.text);
+    if (!briefing) {
+      return generateBriefingDeterministic(goals, allTasks);
+    }
+    return briefing;
+  } catch (err) {
+    console.warn("LLM briefing generation failed, falling back to deterministic:", err);
+    return generateBriefingDeterministic(goals, allTasks);
+  }
+}

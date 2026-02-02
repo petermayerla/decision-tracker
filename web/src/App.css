@@ -580,6 +580,91 @@ h1 {
   border-color: var(--border-hover);
 }
 
+/* ── Suggestions header row ── */
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Suggestion filter tabs ── */
+.sug-filters {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.sug-filter-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  transition: all 0.15s ease;
+  text-transform: capitalize;
+}
+
+.sug-filter-btn:hover {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.sug-filter-btn.active {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-color: var(--accent-glow);
+}
+
+/* ── Dismiss button ── */
+.btn-dismiss-suggestion {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.btn-dismiss-suggestion:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger-border);
+}
+
+/* ── Lifecycle badges ── */
+.sug-lifecycle-badge {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.sug-badge-applied {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.sug-badge-dismissed {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+/* ── Applied/dismissed suggestion card muted ── */
+.suggestion-card-applied,
+.suggestion-card-dismissed {
+  opacity: 0.6;
+}
+
+/* ── Suggestion empty state ── */
+.sug-empty {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 0.3rem 0;
+  opacity: 0.6;
+  font-style: italic;
+}
+
 /* ── Action list (nested under goals) ── */
 .action-list {
   border-top: 1px solid var(--border);
@@ -606,6 +691,204 @@ h1 {
 .action-title {
   flex: 1;
   color: var(--text);
+}
+
+/* ── Reflection panel ── */
+.reflection-panel {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 1rem 0.6rem;
+  animation: slideIn 0.15s ease-out;
+}
+
+.reflection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.reflection-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--status-done);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.btn-dismiss-reflection {
+  background: none;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.12rem 0.45rem;
+  font-size: 0.62rem;
+}
+
+.btn-dismiss-reflection:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-hover);
+}
+
+.reflection-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.reflection-prompt {
+  font-size: 0.76rem;
+  color: var(--text);
+  line-height: 1.45;
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent-glow);
+}
+
+/* ── Reflection form ── */
+.reflection-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reflection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.reflection-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.reflection-input:focus {
+  outline: none;
+  border-color: var(--accent-glow);
+}
+
+.reflection-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.reflection-answer {
+  font-size: 0.76rem;
+  color: var(--text);
+  padding-left: 0.6rem;
+  border-left: 2px solid var(--accent-dim);
+  line-height: 1.4;
+}
+
+/* ── Briefing panel ── */
+.briefing-bar {
+  margin-bottom: 0.75rem;
+}
+
+.btn-briefing {
+  background: rgba(77, 157, 224, 0.12);
+  color: var(--status-progress);
+  border: 1px solid rgba(77, 157, 224, 0.2);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  border-radius: 20px;
+}
+
+.btn-briefing:hover:not(:disabled) {
+  background: rgba(77, 157, 224, 0.22);
+}
+
+.briefing-panel {
+  background: var(--surface);
+  border: 1px solid rgba(77, 157, 224, 0.25);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 0 16px rgba(77, 157, 224, 0.08);
+  animation: slideIn 0.2s ease-out;
+}
+
+.briefing-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.briefing-greeting {
+  font-size: 0.82rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.briefing-headline {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  line-height: 1.35;
+}
+
+.briefing-focus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.briefing-focus-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid rgba(77, 157, 224, 0.35);
+  transition: background 0.15s ease;
+}
+
+.briefing-focus-item:hover {
+  background: var(--surface-hover);
+}
+
+.briefing-focus-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.briefing-focus-goal {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.briefing-focus-why {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.briefing-cta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.briefing-cta-label {
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--status-progress);
+}
+
+.briefing-cta-microcopy {
+  font-size: 0.68rem;
+  color: var(--text-muted);
 }
 
 /* ── Reduced motion ── */

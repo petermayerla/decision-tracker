@@ -21,14 +21,48 @@ type ApiResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: { code: string; message: string } };
 
+type SuggestionLifecycle = "new" | "applied" | "dismissed";
+
 type Suggestion = {
+  id: string;
   title: string;
   rationale: string;
   kind?: string;
   outcome?: string;
   metric?: string;
   horizon?: string;
+  lifecycle: SuggestionLifecycle;
 };
+
+type RawSuggestion = Omit<Suggestion, "id" | "lifecycle">;
+
+type ReflectionAnswer = { promptId: string; value: string };
+
+type Reflection = {
+  decisionId: number;
+  createdAt: string;
+  answers: ReflectionAnswer[];
+};
+
+type BriefingFocusItem = {
+  goalId: number;
+  goalTitle: string;
+  whyNow: string;
+  action: {
+    type: "start_existing_action" | "finish_existing_action" | "create_new_action";
+    actionId?: number;
+    actionTitle: string;
+  };
+};
+
+type MorningBriefing = {
+  greeting: string;
+  headline: string;
+  focus: BriefingFocusItem[];
+  cta: { label: string; microcopy: string };
+};
+
+export type { SuggestionLifecycle, RawSuggestion, ReflectionAnswer, Reflection, BriefingFocusItem, MorningBriefing };
 
 export type { Decision, DecisionPatch, ApiResult, Suggestion };
 
@@ -56,16 +90,18 @@ export async function patchDecision(id: number, patch: DecisionPatch): Promise<A
   return res.json();
 }
 
-export async function generateSuggestions(decision: Decision): Promise<ApiResult<{ suggestions: Suggestion[] }>> {
+export async function generateSuggestions(decision: Decision, reflections?: Reflection[]): Promise<ApiResult<{ suggestions: RawSuggestion[] }>> {
   const res = await fetch(`${BASE}/suggestions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       id: decision.id,
       title: decision.title,
+      status: decision.status,
       outcome: decision.outcome,
       metric: decision.metric,
       horizon: decision.horizon,
+      reflections: reflections && reflections.length > 0 ? reflections : undefined,
     }),
   });
   return res.json();
@@ -78,6 +114,17 @@ export async function startDecision(id: number): Promise<ApiResult<Decision>> {
 
 export async function completeDecision(id: number): Promise<ApiResult<Decision>> {
   const res = await fetch(`${BASE}/tasks/${id}/done`, { method: "POST" });
+  return res.json();
+}
+
+export async function fetchBriefing(reflections?: Reflection[]): Promise<ApiResult<MorningBriefing>> {
+  const res = await fetch(`${BASE}/briefing`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      reflections: reflections && reflections.length > 0 ? reflections : undefined,
+    }),
+  });
   return res.json();
 }
 

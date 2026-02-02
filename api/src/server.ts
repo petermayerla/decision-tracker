@@ -5,6 +5,7 @@ import { loadTracker, saveTracker, STORE_PATH } from "../../src/store.js";
 import { TaskStatus } from "../../src/task-tracker.js";
 import { getSuggestions } from "../../src/suggestions.js";
 import { generateSuggestionsLLM } from "./decision-suggestions.js";
+import { generateBriefingLLM } from "./morning-briefing.js";
 
 const app = express();
 
@@ -130,6 +131,7 @@ app.post("/suggestions", async (req, res) => {
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allDecisions = listResult.ok ? listResult.value : [];
+  const reflections = Array.isArray(req.body.reflections) ? req.body.reflections : undefined;
   const suggestions = await generateSuggestionsLLM(
     {
       id: Number(id),
@@ -140,6 +142,7 @@ app.post("/suggestions", async (req, res) => {
       horizon: typeof req.body.horizon === "string" ? req.body.horizon : undefined,
     },
     allDecisions,
+    reflections,
   );
   res.json({ ok: true, value: { suggestions } });
 });
@@ -154,6 +157,16 @@ app.get("/suggestions", (req, res) => {
   }
   const suggestions = getSuggestions(result.value, limit);
   res.json({ ok: true, value: suggestions });
+});
+
+app.post("/briefing", async (req, res) => {
+  const tracker = loadTracker();
+  const listResult = tracker.listTasks();
+  const allTasks = listResult.ok ? listResult.value : [];
+  const reflections = Array.isArray(req.body.reflections) ? req.body.reflections : undefined;
+  const userName = typeof req.body.userName === "string" ? req.body.userName : undefined;
+  const briefing = await generateBriefingLLM(allTasks, reflections, userName);
+  res.json({ ok: true, value: briefing });
 });
 
 app.post("/reset", (_req, res) => {

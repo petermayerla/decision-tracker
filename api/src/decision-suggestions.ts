@@ -97,56 +97,56 @@ function buildTemplates(d: DecisionInput, dtype: DecisionType): Template[] {
   // ── Type-specific completeness templates ──
   if (dtype === "habit") {
     templates.push(
-      { title: `Set a 30-day target for "${n}"`, rationale: "A 30-day window is long enough to build a habit, short enough to stay motivated.", kind: "next-action", outcome: `Maintain ${n} for 30 consecutive days`, horizon: "30 days", when: "missing", fills: "outcome" },
-      { title: `Choose a daily tracking metric for "${n}"`, rationale: "Daily tracking creates feedback loops that reinforce behavior.", kind: "next-action", metric: "Days streak", when: "missing", fills: "metric" },
-      { title: `Identify your trigger and replacement routine`, rationale: "Habit change works best when you design the cue-routine-reward loop.", kind: "next-action", when: "missing", fills: "outcome" },
-      { title: `Schedule a weekly reflection on "${n}"`, rationale: "Weekly check-ins catch drift before it becomes a relapse.", kind: "review", horizon: "1 week", when: "any" },
-      { title: `Design an accountability system (partner or app)`, rationale: "External accountability doubles follow-through rates.", kind: "next-action", when: "complete" },
-      { title: `Define what 'done' looks like — is this permanent or time-boxed?`, rationale: "Clarity on the end state prevents goal fatigue.", kind: "next-action", outcome: `${n} sustained for target period`, when: "missing", fills: "outcome" },
+      { title: `Pick a 30-day window for "${n}"`, rationale: "Long enough to stick, short enough to feel real. Without a window this stays aspirational.", kind: "next-action", outcome: `Maintain ${n} for 30 consecutive days`, horizon: "30 days", when: "missing", fills: "outcome" },
+      { title: `Track one number daily for "${n}"`, rationale: "Right now you have no feedback loop. A daily tally makes drift visible before it compounds.", kind: "next-action", metric: "Days streak", when: "missing", fills: "metric" },
+      { title: `Name the trigger and the replacement routine`, rationale: "You can't change a habit you haven't mapped. Identifying the cue-routine pair turns willpower into design.", kind: "next-action", when: "missing", fills: "outcome" },
+      { title: `Block 15 min each Sunday to review "${n}"`, rationale: "Without a regular check-in, small lapses go unnoticed until they become full relapses.", kind: "review", horizon: "1 week", when: "any" },
+      { title: `Set up one accountability mechanism`, rationale: "You've defined the habit clearly — now add external friction. A partner or app makes skipping harder.", kind: "next-action", when: "complete" },
+      { title: `Decide: is this permanent or time-boxed?`, rationale: "That distinction changes how you measure success. Pin it down so you know when you're done.", kind: "next-action", outcome: `${n} sustained for target period`, when: "missing", fills: "outcome" },
     );
   } else if (dtype === "study") {
     templates.push(
-      { title: `Set a target score or grade for this`, rationale: "A concrete target turns studying from open-ended to focused.", kind: "next-action", outcome: "Target grade/score achieved", when: "missing", fills: "outcome" },
-      { title: `Estimate hours needed and schedule study blocks`, rationale: "Time-boxing prevents both under-preparation and burnout.", kind: "next-action", metric: "Study hours completed", horizon: "exam date", when: "missing", fills: "metric" },
-      { title: `Create a practice test or flashcard set`, rationale: "Active recall outperforms passive review by 2–3x.", kind: "next-action", when: "any" },
-      { title: `Identify the 3 highest-weight topics`, rationale: "Pareto: 20% of topics often cover 80% of the exam.", kind: "split", when: "missing", fills: "outcome" },
-      { title: `Schedule a mock exam 1 week before deadline`, rationale: "A dry run reveals gaps while there's still time to fix them.", kind: "review", when: "complete" },
+      { title: `Set a target score or grade`, rationale: "Without a number, studying has no natural stopping point. A target tells you when preparation is sufficient.", kind: "next-action", outcome: "Target grade/score achieved", when: "missing", fills: "outcome" },
+      { title: `Estimate hours needed and block them on your calendar`, rationale: "You haven't time-boxed this yet. Unscheduled study time gets eaten by everything else.", kind: "next-action", metric: "Study hours completed", horizon: "exam date", when: "missing", fills: "metric" },
+      { title: `Build a practice test from your weakest areas`, rationale: "Active recall beats re-reading. A practice test tells you what you actually know right now.", kind: "next-action", when: "any" },
+      { title: `Identify the 3 highest-weight topics`, rationale: "Not all material is equal. Focusing on the top topics first gives you the most return per hour studied.", kind: "split", when: "missing", fills: "outcome" },
+      { title: `Schedule a mock exam one week before the deadline`, rationale: "Everything is defined — now stress-test it. A dry run while there's still time to adjust.", kind: "review", when: "complete" },
     );
   } else if (dtype === "product") {
     templates.push(
-      { title: `Define the activation event for this feature`, rationale: "Users who hit the activation event retain 3–5x better.", kind: "next-action", outcome: "Users reach activation event", metric: "Activation rate (%)", when: "missing", fills: "outcome" },
-      { title: `Write a one-line success criterion`, rationale: "If you can't state success in one line, the scope is too broad.", kind: "next-action", outcome: "Feature shipped and adoption measured", when: "missing", fills: "outcome" },
-      { title: `Identify the riskiest assumption and design a test`, rationale: "Testing assumptions early saves weeks of wasted build time.", kind: "next-action", when: "any" },
-      { title: `Set a ship date and work backward`, rationale: "Fixed deadlines force scope decisions that improve focus.", kind: "next-action", horizon: "this sprint", when: "missing", fills: "horizon" },
-      { title: `Draft a 3-bullet release note`, rationale: "Writing the announcement first clarifies what actually matters to users.", kind: "next-action", when: "complete" },
-      { title: `Run a 30-min stakeholder alignment check`, rationale: "Misaligned stakeholders are the #1 cause of late-stage rework.", kind: "review", when: "complete" },
+      { title: `Define the activation event`, rationale: "You're building without knowing what 'adopted' looks like. Name the moment a user gets value.", kind: "next-action", outcome: "Users reach activation event", metric: "Activation rate (%)", when: "missing", fills: "outcome" },
+      { title: `Write a one-line success criterion`, rationale: "If you can't state success in one sentence, the scope is still too fuzzy to build against.", kind: "next-action", outcome: "Feature shipped and adoption measured", when: "missing", fills: "outcome" },
+      { title: `Find the riskiest assumption and design a quick test`, rationale: "There's at least one thing you're assuming that hasn't been validated. Finding it now saves build time later.", kind: "next-action", when: "any" },
+      { title: `Set a ship date and cut scope to fit`, rationale: "No deadline means no forcing function. Pick a date, then decide what fits inside it.", kind: "next-action", horizon: "this sprint", when: "missing", fills: "horizon" },
+      { title: `Draft a 3-bullet release note now`, rationale: "Writing the announcement before building clarifies what users will actually care about.", kind: "next-action", when: "complete" },
+      { title: `Run a 30-min alignment check with stakeholders`, rationale: "Everything is defined, but misaligned expectations still cause late rework. A quick sync prevents that.", kind: "review", when: "complete" },
     );
   } else if (dtype === "vendor") {
     templates.push(
-      { title: `List 3 must-have criteria before evaluating vendors`, rationale: "Without criteria, vendor selection devolves into feature-count comparison.", kind: "next-action", outcome: "Evaluation criteria documented", when: "missing", fills: "outcome" },
-      { title: `Set a decision deadline to avoid analysis paralysis`, rationale: "Vendor decisions expand to fill available time — set a hard stop.", kind: "next-action", horizon: "2 weeks", when: "missing", fills: "horizon" },
-      { title: `Request a trial or sandbox from top 2 candidates`, rationale: "Hands-on testing reveals integration pain that demos hide.", kind: "next-action", metric: "Integration time (hours)", when: "missing", fills: "metric" },
-      { title: `Calculate total cost of ownership (not just license)`, rationale: "Migration, training, and maintenance often exceed the sticker price.", kind: "next-action", metric: "Total cost of ownership ($)", when: "any" },
-      { title: `Write a 1-page decision memo for stakeholders`, rationale: "A written rationale prevents re-litigation later.", kind: "review", when: "complete" },
+      { title: `Write down 3 must-have criteria before looking at vendors`, rationale: "Without criteria, you'll compare feature lists instead of fit. Define what matters before you evaluate.", kind: "next-action", outcome: "Evaluation criteria documented", when: "missing", fills: "outcome" },
+      { title: `Set a hard decision deadline`, rationale: "Vendor decisions expand to fill available time. A deadline forces you to commit with what you know.", kind: "next-action", horizon: "2 weeks", when: "missing", fills: "horizon" },
+      { title: `Request a trial from your top 2 candidates`, rationale: "Demos hide integration pain. Hands-on testing surfaces the real costs before you sign.", kind: "next-action", metric: "Integration time (hours)", when: "missing", fills: "metric" },
+      { title: `Calculate total cost of ownership, not just license`, rationale: "Migration, training, and maintenance often exceed the sticker price. Get the full number now.", kind: "next-action", metric: "Total cost of ownership ($)", when: "any" },
+      { title: `Write a 1-page decision memo`, rationale: "A written rationale now prevents re-litigation later. If people agreed verbally, they'll forget why.", kind: "review", when: "complete" },
     );
   } else if (dtype === "strategy") {
     templates.push(
-      { title: `Define the single metric this strategy should move`, rationale: "Strategy without a metric is just a wish.", kind: "next-action", metric: "Primary KPI", when: "missing", fills: "metric" },
-      { title: `Identify the top 3 risks to this strategy`, rationale: "Naming risks early turns surprises into contingencies.", kind: "next-action", outcome: "Risk register created", when: "missing", fills: "outcome" },
-      { title: `Set a 90-day checkpoint`, rationale: "Quarterly review cycles match natural business rhythms.", kind: "next-action", horizon: "90 days", when: "missing", fills: "horizon" },
-      { title: `Draft a one-page strategy brief`, rationale: "If you can't fit it on one page, the strategy isn't clear enough.", kind: "next-action", when: "any" },
-      { title: `Run a pre-mortem: assume it failed — why?`, rationale: "Pre-mortems surface blind spots that optimism hides.", kind: "review", when: "complete" },
-      { title: `Align with one key stakeholder this week`, rationale: "Early alignment prevents costly pivots later.", kind: "next-action", when: "any" },
+      { title: `Pick the single metric this strategy should move`, rationale: "Right now there's no way to tell if this is working. One number makes progress visible.", kind: "next-action", metric: "Primary KPI", when: "missing", fills: "metric" },
+      { title: `List the top 3 risks`, rationale: "Unnamed risks become surprises. Writing them down turns them into contingencies you can plan for.", kind: "next-action", outcome: "Risk register created", when: "missing", fills: "outcome" },
+      { title: `Set a 90-day checkpoint`, rationale: "Without a review date, strategies drift silently. A quarterly check matches natural business cycles.", kind: "next-action", horizon: "90 days", when: "missing", fills: "horizon" },
+      { title: `Write a one-page strategy brief`, rationale: "If it doesn't fit on one page, it's not clear enough to execute. Compression forces precision.", kind: "next-action", when: "any" },
+      { title: `Run a pre-mortem: assume it failed — why?`, rationale: "You've defined everything. Now find the holes. Imagining failure surfaces blind spots optimism misses.", kind: "review", when: "complete" },
+      { title: `Align with one key stakeholder this week`, rationale: "Early misalignment is cheap to fix. The longer you wait, the more expensive a pivot becomes.", kind: "next-action", when: "any" },
     );
   } else {
     // general
     templates.push(
-      { title: `Write a one-sentence success definition`, rationale: "If you can't state success simply, the goal needs sharpening.", kind: "next-action", outcome: `${n} completed successfully`, when: "missing", fills: "outcome" },
-      { title: `Pick a single number to track progress`, rationale: "One metric beats a dashboard — it forces clarity.", kind: "next-action", metric: "Progress indicator", when: "missing", fills: "metric" },
-      { title: `Set a 2-week deadline`, rationale: "Short deadlines create urgency; extend later if needed.", kind: "next-action", horizon: "2 weeks", when: "missing", fills: "horizon" },
-      { title: `Identify the first concrete next step (< 30 min)`, rationale: "Tiny first steps overcome inertia.", kind: "next-action", when: "any" },
-      { title: `Ask: what would make me abandon this? Write it down`, rationale: "Kill criteria prevent sunk-cost traps.", kind: "review", when: "complete" },
-      { title: `Schedule a check-in with someone who cares about this`, rationale: "Social accountability increases follow-through.", kind: "review", when: "any" },
+      { title: `Finish this sentence: "This is successful when…"`, rationale: "You don't have a success definition yet. One sentence forces you to commit to what done looks like.", kind: "next-action", outcome: `${n} completed successfully`, when: "missing", fills: "outcome" },
+      { title: `Pick one number to track progress`, rationale: "Without a metric, you can't tell if you're moving. One number is better than a dashboard.", kind: "next-action", metric: "Progress indicator", when: "missing", fills: "metric" },
+      { title: `Give yourself a 2-week deadline`, rationale: "Open-ended goals stall. A short deadline creates urgency — you can always extend later.", kind: "next-action", horizon: "2 weeks", when: "missing", fills: "horizon" },
+      { title: `Identify the first concrete step (under 30 min)`, rationale: "Right now this is still an intention. A tiny first action turns it into something in motion.", kind: "next-action", when: "any" },
+      { title: `Write down what would make you abandon this`, rationale: "Kill criteria keep you honest. Without them, sunk cost will keep you going past the point of return.", kind: "review", when: "complete" },
+      { title: `Schedule a check-in with someone who has a stake in this`, rationale: "An external touchpoint adds both accountability and perspective you don't have alone.", kind: "review", when: "any" },
     );
   }
 
@@ -161,8 +161,8 @@ function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Sugge
 
   if (isActionPrefixed(d.title)) {
     return {
-      title: `Write a 1-sentence definition of done for "${n}"`,
-      rationale: "A clear done-check prevents action items from lingering without closure.",
+      title: `Write one sentence: how do you know "${n}" is done?`,
+      rationale: "Without a done-check, action items linger. A single sentence closes the loop.",
       kind: "validation",
     };
   }
@@ -171,29 +171,29 @@ function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Sugge
     if (isComplete) {
       return {
         title: `Write down your top 3 relapse triggers for "${n}"`,
-        rationale: "Naming triggers in advance makes them manageable when they appear.",
+        rationale: "You've defined the habit well. The gap now is knowing what will derail it — name those situations while you're clear-headed.",
         kind: "validation",
       };
     }
     return {
-      title: `Answer: what environment change would make "${n}" easier?`,
-      rationale: "Environment design outperforms willpower — identify one change you can make today.",
+      title: `What one environment change would make "${n}" easier?`,
+      rationale: "Willpower runs out. Changing your environment doesn't. Identify the easiest change you can make today.",
       kind: "validation",
     };
   }
 
   if (dtype === "study") {
     return {
-      title: `Ask yourself: can I explain the core concept in 2 sentences?`,
-      rationale: "If you can't explain it simply, you don't understand it well enough yet.",
+      title: `Try explaining the core concept in 2 sentences`,
+      rationale: "If you can't explain it simply, that's your study priority. This takes 2 minutes and shows you exactly where the gaps are.",
       kind: "validation",
     };
   }
 
   if (dtype === "vendor") {
     return {
-      title: `Ask: what's the cost of choosing wrong? Write it down`,
-      rationale: "Quantifying downside risk clarifies how much diligence this vendor choice deserves.",
+      title: `Write down the cost of choosing wrong`,
+      rationale: "Quantifying the downside tells you how much diligence this decision actually deserves. Some vendor picks are reversible — is this one?",
       kind: "validation",
     };
   }
@@ -201,14 +201,14 @@ function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Sugge
   if (dtype === "product") {
     if (isComplete) {
       return {
-        title: `Identify the riskiest assumption behind "${n}" and design a 30-min test`,
-        rationale: "Untested assumptions are the #1 cause of wasted build time.",
+        title: `Name the riskiest assumption behind "${n}" and sketch a 30-min test`,
+        rationale: "Everything is defined, but there's at least one untested assumption baked in. Finding it now is cheaper than finding it after launch.",
         kind: "validation",
       };
     }
     return {
-      title: `Answer: if this feature fails, what signal will tell you first?`,
-      rationale: "Knowing the failure signal early means you can course-correct before launch.",
+      title: `If this feature fails, what signal will you see first?`,
+      rationale: "Defining the failure signal now means you can catch problems early instead of waiting for a post-mortem.",
       kind: "validation",
     };
   }
@@ -216,14 +216,14 @@ function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Sugge
   if (dtype === "strategy") {
     if (isComplete) {
       return {
-        title: `Run a 5-min pre-mortem: assume "${n}" failed — write down why`,
-        rationale: "Pre-mortems surface blind spots that optimism hides.",
+        title: `Spend 5 min on a pre-mortem: assume "${n}" failed — why?`,
+        rationale: "The plan looks solid on paper. Pre-mortems find the holes that optimism misses, while you still have time to adjust.",
         kind: "validation",
       };
     }
     return {
-      title: `Ask one stakeholder: does this strategy match your expectation?`,
-      rationale: "Early misalignment is cheap to fix — late misalignment kills strategies.",
+      title: `Ask one stakeholder: does this match what you expect?`,
+      rationale: "Misalignment is cheap to fix now and expensive to fix later. One conversation surfaces it.",
       kind: "validation",
     };
   }
@@ -231,14 +231,14 @@ function buildValidationSuggestion(d: DecisionInput, dtype: DecisionType): Sugge
   // general fallback
   if (isComplete) {
     return {
-      title: `List 3 things that would make you abandon "${n}" — write them down`,
-      rationale: "Kill criteria prevent sunk-cost traps and keep decisions honest.",
+      title: `List 3 things that would make you walk away from "${n}"`,
+      rationale: "Everything is defined — now protect yourself from sunk cost. Kill criteria keep you honest when momentum clouds judgment.",
       kind: "validation",
     };
   }
   return {
-    title: `Answer: what's the single biggest risk to "${n}"?`,
-    rationale: "Naming the top risk forces clarity and often reveals the real next step.",
+    title: `What's the single biggest risk to "${n}"?`,
+    rationale: "Naming the top risk often reveals the real next step. Spend 2 minutes on this before anything else.",
     kind: "validation",
   };
 }
@@ -301,8 +301,8 @@ export function generateSuggestions(
   if (hasAmbiguousVerb(title) && !metric) {
     const verb = title.match(AMBIGUOUS_VERBS)?.[0]?.toLowerCase() ?? "improve";
     candidates.push({
-      title: `Replace "${verb}" with a measurable target`,
-      rationale: `"${verb}" is ambiguous — a proxy metric makes progress visible.`,
+      title: `Replace "${verb}" with a specific, measurable target`,
+      rationale: `"${verb}" doesn't tell you when you're done. A concrete number makes progress visible and keeps you from moving goalposts.`,
       kind: "next-action",
       metric: `${normalize(title)} score`,
     });
@@ -317,16 +317,16 @@ export function generateSuggestions(
 
     if (!outcome) {
       candidates.push({
-        title: "Define acceptance criteria for this action",
-        rationale: "Clear criteria prevent scope creep on action items.",
+        title: "Write acceptance criteria for this action",
+        rationale: "Without criteria, this action has no natural finish line. One sentence prevents it from creeping in scope.",
         kind: "next-action",
         outcome: `${normalize(title)} completed and verified`,
       });
     }
     if (!metric) {
       candidates.push({
-        title: "Add a measurable done-check",
-        rationale: "Even small actions benefit from a concrete completion signal.",
+        title: "Add a concrete done-check",
+        rationale: "Even small actions need a completion signal. Otherwise they sit at 'in-progress' indefinitely.",
         kind: "next-action",
         metric: "Done check (yes/no)",
       });
@@ -351,22 +351,22 @@ export function generateSuggestions(
     // Pick the single most valuable field to reuse
     if (!outcome && bestMatch.outcome) {
       candidates.push({
-        title: `Align outcome with "${bestMatch.title}"`,
-        rationale: `Reuse "${bestMatch.outcome}" for consistency across related decisions.`,
+        title: `Use the same outcome framing as "${bestMatch.title}"`,
+        rationale: `"${bestMatch.outcome}" — these decisions are related. Consistent outcomes make it easier to see progress across both.`,
         kind: "follow-up",
         outcome: bestMatch.outcome,
       });
     } else if (!metric && bestMatch.metric) {
       candidates.push({
-        title: `Reuse metric from "${bestMatch.title}"`,
-        rationale: `"${bestMatch.metric}" — consistent measurement across related decisions.`,
+        title: `Reuse the metric from "${bestMatch.title}"`,
+        rationale: `"${bestMatch.metric}" already tracks something similar. Using the same metric avoids double-counting and simplifies review.`,
         kind: "follow-up",
         metric: bestMatch.metric,
       });
     } else if (!horizon && bestMatch.horizon) {
       candidates.push({
-        title: `Align timeline with "${bestMatch.title}"`,
-        rationale: `"${bestMatch.horizon}" — synchronize related decision timelines.`,
+        title: `Sync the timeline with "${bestMatch.title}"`,
+        rationale: `"${bestMatch.horizon}" — aligning timelines for related decisions reduces coordination overhead.`,
         kind: "follow-up",
         horizon: bestMatch.horizon,
       });
@@ -376,9 +376,9 @@ export function generateSuggestions(
   // ─── 5) In-progress unblock suggestions ───
   if (decision.status === "in-progress" && isComplete) {
     const unblockOptions: Suggestion[] = [
-      { title: "Schedule a 30-min stakeholder review", rationale: "External input often unblocks stalled decisions.", kind: "review" },
-      { title: "Write a decision memo (1 page max)", rationale: "Writing forces clarity — if you can't write it, you can't decide it.", kind: "next-action" },
-      { title: "Run a 30-min experiment to test your assumption", rationale: "Small experiments resolve uncertainty faster than analysis.", kind: "next-action" },
+      { title: "Book a 30-min stakeholder review this week", rationale: "This decision is defined but stalled. External input often breaks the logjam faster than more analysis.", kind: "review" },
+      { title: "Write a 1-page decision memo", rationale: "If you can write it down clearly, you can decide. If you can't, the memo shows you exactly where you're stuck.", kind: "next-action" },
+      { title: "Run a 30-min experiment to test your key assumption", rationale: "You're in-progress but not moving. A small experiment resolves uncertainty faster than more deliberation.", kind: "next-action" },
     ];
     // Pick one that isn't already in candidates
     for (const opt of unblockOptions) {
@@ -397,22 +397,22 @@ export function generateSuggestions(
 
     if (todo >= 4 && inProgress === 0) {
       candidates.push({
-        title: "Pick one decision to start (10 min)",
-        rationale: `${todo} decisions waiting — starting one builds momentum.`,
+        title: "Pick one decision and start it now",
+        rationale: `You have ${todo} decisions queued and nothing in-progress. Starting one — any one — creates momentum that makes the rest easier.`,
         kind: "review",
       });
     }
     if (inProgress >= 2) {
       candidates.push({
-        title: "Pause one in-progress decision to reduce WIP",
-        rationale: `${inProgress} decisions in flight — lower WIP improves throughput.`,
+        title: "Pause one in-progress decision to focus",
+        rationale: `${inProgress} decisions in flight at once. Dropping one improves throughput on the rest — pick the one that matters least this week.`,
         kind: "cleanup",
       });
     }
     if (done >= 5) {
       candidates.push({
-        title: "Review recent wins and plan next 3 decisions",
-        rationale: `${done} completed — reflect before adding more.`,
+        title: "Review what you've finished before adding more",
+        rationale: `${done} decisions completed. Before loading up again, spend 10 minutes reflecting on what worked and what to carry forward.`,
         kind: "review",
       });
     }
@@ -462,67 +462,65 @@ export function generateSuggestions(
 
 // ── LLM-backed suggestions (Anthropic Claude) ──
 
-const SYSTEM_PROMPT = `You are an execution-focused decision coach.
+const SYSTEM_PROMPT = `You are a concise product coach. Direct, calm, pragmatic. No hype, no motivational fluff.
 
-Your task is to generate actionable, context-aware suggestions that reduce ambiguity and increase momentum for a single decision.
+You generate suggestions for a single decision. Each suggestion must do one of two things: reduce ambiguity or increase momentum. Nothing else.
 
 You receive:
 - The current decision (id, title, optional outcome, metric, horizon)
-- A list of all existing decisions (with their outcomes, metrics, horizons, and status)
+- All other decisions (for context and reuse)
+- Optionally: past reflections from the user on this decision
 
-You must infer what would most help this decision move forward.
+Core reasoning rules:
+- First identify the single biggest constraint holding this decision back RIGHT NOW
+- Anchor all suggestions to relieving that constraint
+- If past reflections exist, treat them as ground truth:
+  - Reinforce actions that worked
+  - Avoid repeating actions that did not
+  - If a reflection contradicts a "best practice", trust the reflection
 
-Guidelines:
-- Prefer concrete, specific suggestions over generic advice
-- Avoid repeating information already present in the decision
-- Do NOT suggest fields that are already clearly defined
-- If the decision is complete, shift from clarification to execution
-- If similar past decisions exist, reuse their structure where helpful
-- Never suggest "break into steps" for decisions that already start with "Action:"
-- Limit output to a maximum of 4 suggestions
-- Deduplicate ideas aggressively
-- ALWAYS include exactly ONE suggestion with kind "validation" (see below)
+Tone rules:
+- Write like a thoughtful coach talking to a peer, not a tool generating options
+- Every rationale must explain why this helps THIS decision NOW — not in general
+- Never repeat what's already defined (outcome, metric, horizon)
+- Never mention your reasoning process
+- Be specific. "Write a one-page brief" beats "Clarify your thinking"
 
-Suggestion kinds (use exactly these values):
-- "outcome"       → clarifies what success looks like
-- "metric"        → makes progress measurable
-- "horizon"       → adds a deadline or time boundary
-- "execution"     → concrete next actions or steps
-- "reuse"         → reuse structure from a similar past decision
-- "validation"    → a reflective question or quick check that surfaces risks, tests assumptions, or sharpens commitment
+Structure rules:
+- Max 4 suggestions
+- Exactly 1 must have kind "validation"
+- Prioritize suggestions by leverage, not completeness
+- Deduplicate aggressively
+- If the decision is already well-defined, shift from clarification to execution
+- If similar past decisions exist, reuse their structure deliberately (not generically)
 
-IMPORTANT — validation suggestion rules:
-- Every response MUST contain exactly one "validation" suggestion.
-- It must be phrased as a concrete action the user can take immediately (a question to answer, a quick check, a 5-minute test).
-- It must be contextual to THIS decision's title, status, and existing fields — never generic.
-- Do NOT include outcome/metric/horizon fields on validation suggestions unless proposing a concrete value.
-- Examples of good validation suggestions:
-  - "Answer: what's the single biggest risk to this decision?"
-  - "List 3 things that would make you abandon this — write them down"
-  - "Ask one stakeholder: does this outcome match your expectation?"
-  - "Spend 5 min writing what failure looks like — does your metric catch it?"
+Suggestion kinds (use exactly these):
+- "outcome"    → defines what success looks like
+- "metric"     → makes progress measurable
+- "horizon"    → adds a deadline
+- "execution"  → concrete next action
+- "reuse"      → borrows structure from a similar decision
+- "validation" → reflective check that tests the plan
 
-Output format:
-Return ONLY valid JSON. Do not include any text outside JSON.
+Output: ONLY valid JSON array. No text outside JSON.
 
-Each suggestion must follow this schema:
-
+Schema per suggestion:
 {
   "title": string,
   "rationale": string,
-  "kind": "outcome" | "metric" | "horizon" | "execution" | "reuse" | "validation",
+  "kind": string,
   "outcome"?: string,
   "metric"?: string,
   "horizon"?: string
-}
+}`;
 
-Rules:
-- Only include outcome/metric/horizon fields if the suggestion proposes a concrete value
-- The rationale should explain why this suggestion helps THIS decision now
-- Do not explain your reasoning process
-- Do not mention that you are an AI`;
+type ReflectionInput = {
+  decisionId: number;
+  createdAt: string;
+  answers: { promptId: string; value: string }[];
+};
 
-function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[]): string {
+function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[], reflections?: ReflectionInput[]): string {
   const current = JSON.stringify(decision, null, 2);
   const others = allDecisions
     .filter((d) => d.id !== decision.id)
@@ -531,7 +529,14 @@ function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[])
     ? JSON.stringify(others, null, 2)
     : "[]";
 
-  return `Current decision:\n${current}\n\nAll other decisions:\n${otherJson}`;
+  let prompt = `Current decision:\n${current}\n\nAll other decisions:\n${otherJson}`;
+
+  if (reflections && reflections.length > 0) {
+    prompt += `\n\nPast reflections from the user on this decision:\n${JSON.stringify(reflections, null, 2)}`;
+    prompt += `\n\nUse these reflections to tailor suggestions: reinforce what worked, avoid repeating what didn't, and build on the user's own insights.`;
+  }
+
+  return prompt;
 }
 
 function parseLLMResponse(text: string): Suggestion[] {
@@ -564,6 +569,7 @@ function parseLLMResponse(text: string): Suggestion[] {
 export async function generateSuggestionsLLM(
   decision: DecisionInput,
   allDecisions: DecisionInput[] = [],
+  reflections?: ReflectionInput[],
 ): Promise<Suggestion[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -579,7 +585,7 @@ export async function generateSuggestionsLLM(
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions) }],
+      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions, reflections) }],
     });
 
     const textBlock = message.content.find((b) => b.type === "text");

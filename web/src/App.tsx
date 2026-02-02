@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   fetchDecisions,
   addDecision,
@@ -7,13 +7,145 @@ import {
   completeDecision,
   generateSuggestions,
   resetDecisions,
+  fetchBriefing,
   type Decision,
   type DecisionPatch,
   type Suggestion,
+  type SuggestionLifecycle,
+  type RawSuggestion,
+  type Reflection,
+  type MorningBriefing,
+  type BriefingFocusItem,
 } from "./api";
 
 const FILTERS = ["all", "todo", "in-progress", "done"] as const;
 type Filter = (typeof FILTERS)[number];
+
+const SUGGESTION_FILTERS = ["new", "applied", "dismissed"] as const;
+type SuggestionFilter = (typeof SUGGESTION_FILTERS)[number];
+
+// Simple deterministic hash for stable suggestion IDs
+function hashSuggestionId(goalId: number, kind: string | undefined, title: string): string {
+  const str = `${goalId}:${kind ?? ""}:${title}`;
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return `s_${goalId}_${(h >>> 0).toString(36)}`;
+}
+
+// Per-goal suggestion store persisted in localStorage
+type SuggestionStore = Record<number, Suggestion[]>;
+
+const LS_KEY = "suggestions-by-goal";
+
+function loadSuggestionStore(): SuggestionStore {
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveSuggestionStore(store: SuggestionStore) {
+  localStorage.setItem(LS_KEY, JSON.stringify(store));
+}
+
+function mergeSuggestions(
+  goalId: number,
+  incoming: RawSuggestion[],
+  existing: Suggestion[],
+): Suggestion[] {
+  const byId = new Map(existing.map((s) => [s.id, s]));
+  for (const raw of incoming) {
+    const id = hashSuggestionId(goalId, raw.kind, raw.title);
+    if (!byId.has(id)) {
+      byId.set(id, { ...raw, id, lifecycle: "new" });
+    }
+    // else: keep existing lifecycle state
+  }
+  return [...byId.values()];
+}
+
+// ── Reflection prompts (shown on completion) ──
+
+type ReflectionPrompt = { id: string; text: string };
+
+function generateReflections(d: Decision, childActions: Decision[]): ReflectionPrompt[] {
+  const prompts: ReflectionPrompt[] = [];
+  const n = d.title.toLowerCase().replace(/\s+/g, " ").trim();
+
+  // 1. Outcome reflection — did the stated outcome hold?
+  if (d.outcome) {
+    prompts.push({
+      id: `ref_${d.id}_outcome`,
+      text: `You set out to achieve "${d.outcome}". Looking back, what actually happened — and where did it diverge from the plan?`,
+    });
+  } else {
+    prompts.push({
+      id: `ref_${d.id}_outcome`,
+      text: `What was the actual outcome of "${n}"? If you had to state it in one sentence, what would it be?`,
+    });
+  }
+
+  // 2. Metric reflection — was the metric useful?
+  if (d.metric) {
+    prompts.push({
+      id: `ref_${d.id}_metric`,
+      text: `You tracked "${d.metric}". Did that number tell you what you needed to know, or would a different measure have been more useful?`,
+    });
+  } else {
+    // No metric — ask what they'd track if they did it again
+    prompts.push({
+      id: `ref_${d.id}_noMetric`,
+      text: `If you were starting "${n}" again, what single number would you track from the beginning?`,
+    });
+  }
+
+  // 3. Context-dependent third prompt
+  const doneActions = childActions.filter((a) => a.status === "done").length;
+  const totalActions = childActions.length;
+
+  if (totalActions > 0 && doneActions < totalActions) {
+    // Some actions left incomplete
+    prompts.push({
+      id: `ref_${d.id}_actions`,
+      text: `${totalActions - doneActions} of ${totalActions} actions weren't completed. Were they unnecessary, or is there unfinished work worth carrying forward?`,
+    });
+  } else if (d.horizon) {
+    // Had a timeline — ask about pacing
+    prompts.push({
+      id: `ref_${d.id}_horizon`,
+      text: `Your timeline was "${d.horizon}". Was the pacing right, or would you budget time differently next time?`,
+    });
+  } else {
+    // General reusable-insight prompt
+    prompts.push({
+      id: `ref_${d.id}_reuse`,
+      text: `What's one thing you learned here that would change how you approach a similar decision in the future?`,
+    });
+  }
+
+  return prompts;
+}
+
+// ── Reflection answer store (localStorage) ──
+
+type ReflectionStore = Record<number, Reflection>;
+
+const REFLECTION_LS_KEY = "reflections-store";
+
+function loadReflectionStore(): ReflectionStore {
+  try {
+    return JSON.parse(localStorage.getItem(REFLECTION_LS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveReflectionStore(store: ReflectionStore) {
+  localStorage.setItem(REFLECTION_LS_KEY, JSON.stringify(store));
+}
 
 const STATUS_DOT: Record<Decision["status"], string> = {
   todo: "status-dot status-dot-todo",
@@ -39,9 +171,22 @@ export function App() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [suggestionsExpandedId, setSuggestionsExpandedId] = useState<number | null>(null);
-  const [suggestionsMap, setSuggestionsMap] = useState<Record<number, Suggestion[]>>({});
+  const [suggestionStore, setSuggestionStore] = useState<SuggestionStore>(loadSuggestionStore);
+  const [sugFilterMap, setSugFilterMap] = useState<Record<number, SuggestionFilter>>({});
   const [generating, setGenerating] = useState(false);
+  const [reflectionStore, setReflectionStore] = useState<ReflectionStore>(loadReflectionStore);
+  const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingDismissed, setBriefingDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
+    setSuggestionStore((prev) => {
+      const next = updater(prev);
+      saveSuggestionStore(next);
+      return next;
+    });
+  }, []);
 
   const load = async () => {
     const status = filter === "all" ? undefined : filter;
@@ -116,13 +261,27 @@ export function App() {
   const handleGenerate = async (d: Decision) => {
     setError(null);
     setGenerating(true);
-    const result = await generateSuggestions(d);
+    const pastReflection = reflectionStore[d.id];
+    const reflections = pastReflection ? [pastReflection] : undefined;
+    const result = await generateSuggestions(d, reflections);
     setGenerating(false);
     if (result.ok) {
-      setSuggestionsMap((prev) => ({ ...prev, [d.id]: result.value.suggestions }));
+      updateSuggestionStore((prev) => ({
+        ...prev,
+        [d.id]: mergeSuggestions(d.id, result.value.suggestions, prev[d.id] ?? []),
+      }));
     } else {
       setError(result.error.message);
     }
+  };
+
+  const setSuggestionLifecycle = (goalId: number, suggestionId: string, lifecycle: SuggestionLifecycle) => {
+    updateSuggestionStore((prev) => ({
+      ...prev,
+      [goalId]: (prev[goalId] ?? []).map((s) =>
+        s.id === suggestionId ? { ...s, lifecycle } : s,
+      ),
+    }));
   };
 
   const handleApplySuggestion = async (d: Decision, s: Suggestion) => {
@@ -149,20 +308,69 @@ export function App() {
       setExpandedId(null);
       setEditingId(null);
       setSuggestionsExpandedId(null);
-      setSuggestionsMap({});
+      updateSuggestionStore(() => ({}));
+      setSugFilterMap({});
+      setReflectionStore({});
+      saveReflectionStore({});
+      setBriefing(null);
+      setBriefingDismissed(false);
       load();
     } else {
       setError(result.error.message);
     }
   };
 
-  const handleAddSuggestion = async (suggestionTitle: string, parentId: number) => {
+  const handleAddSuggestion = async (s: Suggestion, goalId: number) => {
     setError(null);
     setBusy(true);
-    const result = await addDecision(suggestionTitle, { parentId, kind: "action" });
+    const result = await addDecision(s.title, { parentId: goalId, kind: "action" });
     setBusy(false);
-    if (result.ok) load();
-    else setError(result.error.message);
+    if (result.ok) {
+      setSuggestionLifecycle(goalId, s.id, "applied");
+      load();
+    } else {
+      setError(result.error.message);
+    }
+  };
+
+  const saveReflection = (decisionId: number, answers: { promptId: string; value: string }[]) => {
+    setReflectionStore((prev) => {
+      const next = {
+        ...prev,
+        [decisionId]: { decisionId, createdAt: new Date().toISOString(), answers },
+      };
+      saveReflectionStore(next);
+      return next;
+    });
+  };
+
+  const handleBriefing = async () => {
+    setBriefingLoading(true);
+    setBriefingDismissed(false);
+    setError(null);
+    const allReflections = Object.values(reflectionStore);
+    const result = await fetchBriefing(allReflections.length > 0 ? allReflections : undefined);
+    setBriefingLoading(false);
+    if (result.ok) {
+      setBriefing(result.value);
+    } else {
+      setError(result.error.message);
+    }
+  };
+
+  const handleBriefingAction = async (item: BriefingFocusItem) => {
+    if (item.action.type === "start_existing_action" && item.action.actionId) {
+      await handleStart(item.action.actionId);
+    } else if (item.action.type === "finish_existing_action" && item.action.actionId) {
+      await handleDone(item.action.actionId);
+    } else if (item.action.type === "create_new_action") {
+      setError(null);
+      setBusy(true);
+      const result = await addDecision(item.action.actionTitle, { parentId: item.goalId, kind: "action" });
+      setBusy(false);
+      if (result.ok) load();
+      else setError(result.error.message);
+    }
   };
 
   return (
@@ -184,6 +392,46 @@ export function App() {
         ))}
       </div>
 
+      <div className="briefing-bar">
+        <button className="btn btn-briefing" disabled={briefingLoading} onClick={handleBriefing}>
+          {briefingLoading ? "Loading\u2026" : "Morning briefing"}
+        </button>
+      </div>
+
+      {briefing && !briefingDismissed && (
+        <div className="briefing-panel">
+          <div className="briefing-header">
+            <div>
+              <div className="briefing-greeting">{briefing.greeting}</div>
+              <div className="briefing-headline">{briefing.headline}</div>
+            </div>
+            <button className="btn btn-dismiss-reflection" onClick={() => setBriefingDismissed(true)}>Hide</button>
+          </div>
+          <div className="briefing-focus-list">
+            {briefing.focus.map((item, i) => (
+              <div key={i} className="briefing-focus-item">
+                <div className="briefing-focus-content">
+                  <span className="briefing-focus-goal">{item.goalTitle}</span>
+                  <span className="briefing-focus-why">{item.whyNow}</span>
+                </div>
+                <button
+                  className="btn btn-start"
+                  disabled={busy}
+                  onClick={() => handleBriefingAction(item)}
+                >
+                  {item.action.type === "finish_existing_action" ? "Done" :
+                   item.action.type === "start_existing_action" ? "Start" : "Create"}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="briefing-cta">
+            <span className="briefing-cta-label">{briefing.cta.label}</span>
+            <span className="briefing-cta-microcopy">{briefing.cta.microcopy}</span>
+          </div>
+        </div>
+      )}
+
       {error && <div className="error">{error}</div>}
 
       <div className="decision-list">
@@ -195,7 +443,9 @@ export function App() {
             const isEditing = editingId === d.id;
             const hasDetails = !!(d.outcome || d.metric || d.horizon);
             const isSuggestionsOpen = suggestionsExpandedId === d.id;
-            const suggestions = suggestionsMap[d.id];
+            const allSuggestions = suggestionStore[d.id] ?? [];
+            const sugFilter = sugFilterMap[d.id] ?? "new";
+            const filteredSuggestions = allSuggestions.filter((s) => s.lifecycle === sugFilter);
             const childActions = decisions.filter((a) => a.parentId === d.id);
             return (
               <div key={d.id} className={isExpanded || isSuggestionsOpen ? "decision-group decision-group-expanded" : "decision-group"}>
@@ -265,42 +515,80 @@ export function App() {
 
                 {isSuggestionsOpen && (
                   <div className="suggestions-panel">
-                    <button
-                      className="btn btn-generate"
-                      disabled={generating}
-                      onClick={() => handleGenerate(d)}
-                    >
-                      {generating ? "Generating\u2026" : "Generate"}
-                    </button>
-                    {suggestions && suggestions.length > 0 && (
+                    <div className="suggestions-header">
+                      <button
+                        className="btn btn-generate"
+                        disabled={generating}
+                        onClick={() => handleGenerate(d)}
+                      >
+                        {generating ? "Generating\u2026" : "Generate"}
+                      </button>
+                      {allSuggestions.length > 0 && (
+                        <div className="sug-filters">
+                          {SUGGESTION_FILTERS.map((sf) => {
+                            const count = allSuggestions.filter((s) => s.lifecycle === sf).length;
+                            return (
+                              <button
+                                key={sf}
+                                className={`sug-filter-btn ${sugFilter === sf ? "active" : ""}`}
+                                onClick={() => setSugFilterMap((prev) => ({ ...prev, [d.id]: sf }))}
+                              >
+                                {sf} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    {filteredSuggestions.length > 0 && (
                       <div className="suggestions-list">
-                        {suggestions.map((s, i) => (
-                          <div className="suggestion-card" key={i}>
+                        {filteredSuggestions.map((s) => (
+                          <div className={`suggestion-card suggestion-card-${s.lifecycle}`} key={s.id}>
                             <div className="suggestion-content">
                               <span className="suggestion-title">{s.title}</span>
                               <span className="suggestion-rationale">{s.rationale}</span>
                             </div>
                             <div className="suggestion-actions">
-                              {(s.outcome || s.metric || s.horizon) && (
-                                <button
-                                  className="btn btn-apply-suggestion"
-                                  disabled={busy}
-                                  onClick={() => handleApplySuggestion(d, s)}
-                                >
-                                  Apply
-                                </button>
+                              {s.lifecycle === "new" && (
+                                <>
+                                  {(s.outcome || s.metric || s.horizon) && (
+                                    <button
+                                      className="btn btn-apply-suggestion"
+                                      disabled={busy}
+                                      onClick={() => handleApplySuggestion(d, s)}
+                                    >
+                                      Apply
+                                    </button>
+                                  )}
+                                  <button
+                                    className="btn btn-add-suggestion"
+                                    disabled={busy}
+                                    onClick={() => handleAddSuggestion(s, d.id)}
+                                  >
+                                    + Add
+                                  </button>
+                                  <button
+                                    className="btn btn-dismiss-suggestion"
+                                    disabled={busy}
+                                    onClick={() => setSuggestionLifecycle(d.id, s.id, "dismissed")}
+                                  >
+                                    Dismiss
+                                  </button>
+                                </>
                               )}
-                              <button
-                                className="btn btn-add-suggestion"
-                                disabled={busy}
-                                onClick={() => handleAddSuggestion(s.title, d.id)}
-                              >
-                                + Add
-                              </button>
+                              {s.lifecycle === "applied" && (
+                                <span className="sug-lifecycle-badge sug-badge-applied">Added</span>
+                              )}
+                              {s.lifecycle === "dismissed" && (
+                                <span className="sug-lifecycle-badge sug-badge-dismissed">Dismissed</span>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
+                    )}
+                    {allSuggestions.length > 0 && filteredSuggestions.length === 0 && (
+                      <div className="sug-empty">No {sugFilter} suggestions.</div>
                     )}
                   </div>
                 )}
@@ -320,6 +608,15 @@ export function App() {
                       </div>
                     ))}
                   </div>
+                )}
+
+                {d.status === "done" && (
+                  <ReflectionPanel
+                    decision={d}
+                    childActions={childActions}
+                    saved={reflectionStore[d.id]}
+                    onSave={(answers) => saveReflection(d.id, answers)}
+                  />
                 )}
               </div>
             );
@@ -376,6 +673,73 @@ function DetailRow({ label, value }: { label: string; value?: string }) {
       {value
         ? <span className="detail-value">{value}</span>
         : <span className="detail-placeholder">Not defined</span>}
+    </div>
+  );
+}
+
+function ReflectionPanel({
+  decision, childActions, saved, onSave,
+}: {
+  decision: Decision;
+  childActions: Decision[];
+  saved?: Reflection;
+  onSave: (answers: { promptId: string; value: string }[]) => void;
+}) {
+  const prompts = generateReflections(decision, childActions);
+  const [drafts, setDrafts] = useState<Record<string, string>>(() => {
+    if (!saved) return {};
+    const m: Record<string, string> = {};
+    for (const a of saved.answers) m[a.promptId] = a.value;
+    return m;
+  });
+  const [collapsed, setCollapsed] = useState(!!saved);
+
+  const hasContent = Object.values(drafts).some((v) => v.trim());
+  const isSaved = !!saved;
+
+  const handleSave = () => {
+    const answers = prompts
+      .map((p) => ({ promptId: p.id, value: (drafts[p.id] ?? "").trim() }))
+      .filter((a) => a.value);
+    if (answers.length > 0) onSave(answers);
+  };
+
+  return (
+    <div className="reflection-panel">
+      <div className="reflection-header">
+        <span className="reflection-label">{isSaved ? "Reflected" : "Reflect"}</span>
+        <button
+          className="btn btn-dismiss-reflection"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          {collapsed ? "Show" : "Hide"}
+        </button>
+      </div>
+      {!collapsed && (
+        <div className="reflection-form">
+          {prompts.map((r) => (
+            <div key={r.id} className="reflection-field">
+              <p className="reflection-prompt">{r.text}</p>
+              {isSaved ? (
+                <p className="reflection-answer">{drafts[r.id] || <span className="detail-placeholder">No answer</span>}</p>
+              ) : (
+                <textarea
+                  className="reflection-input"
+                  rows={2}
+                  placeholder="Your reflection..."
+                  value={drafts[r.id] ?? ""}
+                  onChange={(e) => setDrafts((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                />
+              )}
+            </div>
+          ))}
+          {!isSaved && (
+            <button className="btn btn-save" disabled={!hasContent} onClick={handleSave}>
+              Save reflections
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
