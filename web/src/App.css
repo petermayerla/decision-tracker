@@ -956,6 +956,30 @@ h1 {
   transform: translateY(-2px);
 }
 
+.btn-secondary {
+  background: #2a2a2a;
+  color: #888;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #3a3a3a;
+  color: #aaa;
+}
+
+.reflection-modal {
+  max-width: 500px;
+}
+
+.reflection-modal input {
+  width: 100%;
+}
+
 /* ── Daily Briefing Card ── */
 .daily-briefing-card {
   background: linear-gradient(135deg, #1a1a1a 0%, #141414 100%);
@@ -1067,6 +1091,25 @@ h1 {
   border-radius: 8px;
   color: #34d399;
   font-weight: 600;
+}
+
+.btn-dismiss-briefing {
+  background: rgba(255, 255, 255, 0.05);
+  color: #888;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 300;
+}
+
+.btn-dismiss-briefing:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 /* ── Reduced motion ── */

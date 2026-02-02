@@ -122,3 +122,21 @@ Start command: `cd api && npx tsx src/server.ts`
 Build command: `cd web && npm install && npm run build`
 Output directory: `web/dist`
 
+---
+
+## 📦 Client-Side Storage (localStorage)
+
+The web UI uses localStorage for user preferences and lightweight reflection data:
+
+| Key | Purpose | Format |
+|-----|---------|--------|
+| `user-name` | User's name for personalized greetings | `string` |
+| `suggestions-by-goal` | Per-goal suggestion lifecycle tracking | `Record<goalId, Suggestion[]>` |
+| `daily-commitments` | Daily briefing commitment dates | `Record<date, boolean>` |
+| `briefing-cache` | Cached daily briefings per date | `Record<date, MorningBriefing>` |
+| `briefing-dismissed` | Dismissed briefing dates | `Record<date, boolean>` |
+| `reflections` | Quick reflection responses | `{ quick: QuickReflection[] }` |
+| `reflections-store` | Goal completion reflections | `Record<goalId, Reflection>` |
+
+All reflection data is stored client-side and optionally passed to the suggestions API for context-aware recommendations.
+

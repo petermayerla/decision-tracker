@@ -42,6 +42,8 @@ const LS_KEY = "suggestions-by-goal";
 const LS_USER_NAME = "user-name";
 const LS_DAILY_COMMITMENTS = "daily-commitments";
 const LS_BRIEFING_CACHE = "briefing-cache";
+const LS_BRIEFING_DISMISSED = "briefing-dismissed";
+const LS_REFLECTIONS = "reflections";
 
 function loadSuggestionStore(): SuggestionStore {
   try {
@@ -89,6 +91,42 @@ function saveBriefingCache(cache: Record<string, MorningBriefing>) {
 
 function getTodayKey(): string {
   return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+function loadBriefingDismissed(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(LS_BRIEFING_DISMISSED) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveBriefingDismissed(dismissed: Record<string, boolean>) {
+  localStorage.setItem(LS_BRIEFING_DISMISSED, JSON.stringify(dismissed));
+}
+
+type QuickReflection = {
+  date: string;
+  goalId?: number;
+  actionId?: number;
+  promptId: string;
+  response: string;
+};
+
+type ReflectionsStore = {
+  quick: QuickReflection[];
+};
+
+function loadReflections(): ReflectionsStore {
+  try {
+    return JSON.parse(localStorage.getItem(LS_REFLECTIONS) || '{"quick":[]}');
+  } catch {
+    return { quick: [] };
+  }
+}
+
+function saveReflections(store: ReflectionsStore) {
+  localStorage.setItem(LS_REFLECTIONS, JSON.stringify(store));
 }
 
 function mergeSuggestions(
@@ -217,13 +255,22 @@ export function App() {
   const [reflectionStore, setReflectionStore] = useState<ReflectionStore>(loadReflectionStore);
   const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
-  const [briefingDismissed, setBriefingDismissed] = useState(false);
+  const [briefingDismissed, setBriefingDismissed] = useState<Record<string, boolean>>({});
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [commitments, setCommitments] = useState<Record<string, boolean>>({});
   const [briefingCache, setBriefingCache] = useState<Record<string, MorningBriefing>>({});
   const [streak, setStreak] = useState(0);
+  const [reflectionsStore, setReflectionsStore] = useState<ReflectionsStore>(loadReflections);
+  const [showReflectionPrompt, setShowReflectionPrompt] = useState(false);
+  const [reflectionPromptData, setReflectionPromptData] = useState<{
+    prompt: string;
+    promptId: string;
+    goalId?: number;
+    actionId?: number;
+  } | null>(null);
+  const [reflectionInput, setReflectionInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -282,6 +329,7 @@ export function App() {
     // Load commitments and briefing cache
     setCommitments(loadDailyCommitments());
     setBriefingCache(loadBriefingCache());
+    setBriefingDismissed(loadBriefingDismissed());
 
     // Calculate streak
     calculateStreak();
@@ -307,18 +355,66 @@ export function App() {
     setError(null);
     setBusy(true);
     const result = await startDecision(id);
+
+    if (result.ok) {
+      // If this is an action with a parent goal, ensure parent is in-progress
+      const task = result.value;
+      if (task.parentId) {
+        const parent = decisions.find((d) => d.id === task.parentId);
+        if (parent && parent.status === "todo") {
+          await startDecision(task.parentId);
+        }
+      }
+      await load();
+    } else {
+      setError(result.error.message);
+    }
     setBusy(false);
-    if (result.ok) load();
-    else setError(result.error.message);
   };
 
   const handleDone = async (id: number) => {
     setError(null);
     setBusy(true);
     const result = await completeDecision(id);
+
+    if (result.ok) {
+      const task = result.value;
+
+      // Show reflection prompt for completed actions
+      if (task.parentId) {
+        const prompts = [
+          "What helped you make progress?",
+          "What slowed you down?",
+          "What would you do differently next time?"
+        ];
+        const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
+
+        setReflectionPromptData({
+          prompt: randomPrompt,
+          promptId: `done_${Date.now()}`,
+          actionId: id,
+          goalId: task.parentId,
+        });
+        setShowReflectionPrompt(true);
+      }
+
+      // Check if all sibling actions are done, if so mark parent as done
+      if (task.parentId) {
+        await load();
+        const updatedDecisions = (await fetchDecisions()).ok ? (await fetchDecisions()).value : decisions;
+        const siblings = updatedDecisions.filter((d) => d.parentId === task.parentId);
+        const allDone = siblings.length > 0 && siblings.every((s) => s.status === "done");
+
+        if (allDone) {
+          await completeDecision(task.parentId);
+        }
+      }
+
+      await load();
+    } else {
+      setError(result.error.message);
+    }
     setBusy(false);
-    if (result.ok) load();
-    else setError(result.error.message);
   };
 
   const handleSaveDetails = async (id: number, patch: DecisionPatch) => {
@@ -351,10 +447,24 @@ export function App() {
   const handleGenerate = async (d: Decision) => {
     setError(null);
     setGenerating(true);
+
+    // Combine goal-completion reflections and quick reflections
     const pastReflection = reflectionStore[d.id];
-    const reflections = pastReflection ? [pastReflection] : undefined;
-    const result = await generateSuggestions(d, reflections);
+    const goalReflections = pastReflection ? [pastReflection] : [];
+
+    // Add quick reflections related to this goal
+    const quickReflections = reflectionsStore.quick
+      .filter((r) => r.goalId === d.id)
+      .map((r) => ({
+        decisionId: d.id,
+        createdAt: r.date,
+        answers: [{ promptId: r.promptId, value: r.response }],
+      }));
+
+    const allReflections = [...goalReflections, ...quickReflections];
+    const result = await generateSuggestions(d, allReflections.length > 0 ? allReflections : undefined);
     setGenerating(false);
+
     if (result.ok) {
       updateSuggestionStore((prev) => ({
         ...prev,
@@ -403,9 +513,12 @@ export function App() {
       setReflectionStore({});
       saveReflectionStore({});
       setBriefing(null);
-      setBriefingDismissed(false);
+      setBriefingDismissed({});
+      saveBriefingDismissed({});
       setBriefingCache({});
       saveBriefingCache({});
+      setReflectionsStore({ quick: [] });
+      saveReflections({ quick: [] });
       load();
     } else {
       setError(result.error.message);
@@ -509,6 +622,54 @@ export function App() {
 
     // Trigger confetti
     triggerConfetti(newStreak);
+
+    // Show reflection prompt
+    setReflectionPromptData({
+      prompt: "What would make today a win?",
+      promptId: "commit",
+      goalId: briefing?.focus[0]?.goalId,
+    });
+    setShowReflectionPrompt(true);
+  };
+
+  const handleDismissBriefing = () => {
+    const todayKey = getTodayKey();
+    const newDismissed = { ...briefingDismissed, [todayKey]: true };
+    setBriefingDismissed(newDismissed);
+    saveBriefingDismissed(newDismissed);
+  };
+
+  const handleReflectionSubmit = () => {
+    if (!reflectionPromptData || !reflectionInput.trim()) {
+      setShowReflectionPrompt(false);
+      setReflectionInput("");
+      return;
+    }
+
+    const newReflection: QuickReflection = {
+      date: getTodayKey(),
+      goalId: reflectionPromptData.goalId,
+      actionId: reflectionPromptData.actionId,
+      promptId: reflectionPromptData.promptId,
+      response: reflectionInput.trim(),
+    };
+
+    const updated = {
+      ...reflectionsStore,
+      quick: [...reflectionsStore.quick, newReflection],
+    };
+    setReflectionsStore(updated);
+    saveReflections(updated);
+
+    setShowReflectionPrompt(false);
+    setReflectionInput("");
+    setReflectionPromptData(null);
+  };
+
+  const handleReflectionSkip = () => {
+    setShowReflectionPrompt(false);
+    setReflectionInput("");
+    setReflectionPromptData(null);
   };
 
   const handleBriefing = async () => {
@@ -517,13 +678,12 @@ export function App() {
     // Check cache first
     if (briefingCache[todayKey]) {
       setBriefing(briefingCache[todayKey]);
-      setBriefingDismissed(false);
+      // Don't auto-dismiss from cache, respect current dismissed state
       return;
     }
 
     // Fetch new briefing
     setBriefingLoading(true);
-    setBriefingDismissed(false);
     setError(null);
 
     const allReflections = Object.values(reflectionStore);
@@ -579,6 +739,31 @@ export function App() {
         </div>
       )}
 
+      {showReflectionPrompt && reflectionPromptData && (
+        <div className="name-prompt-overlay">
+          <div className="name-prompt-modal reflection-modal">
+            <h3>Quick Reflection</h3>
+            <p>{reflectionPromptData.prompt}</p>
+            <input
+              type="text"
+              value={reflectionInput}
+              onChange={(e) => setReflectionInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleReflectionSubmit()}
+              placeholder="Your thoughts..."
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <button className="btn btn-primary" onClick={handleReflectionSubmit}>
+                Save
+              </button>
+              <button className="btn btn-secondary" onClick={handleReflectionSkip}>
+                Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="header-row">
         <h1>Decisions</h1>
         <button className="btn btn-reset" disabled={busy} onClick={handleReset}>Reset</button>
@@ -596,74 +781,85 @@ export function App() {
         ))}
       </div>
 
-      <div className="daily-briefing-card">
-        {!briefing ? (
-          <div className="briefing-prompt">
-            <h2>Daily Briefing</h2>
-            <p>Get your personalized focus for today</p>
-            <button
-              className="btn btn-primary"
-              disabled={briefingLoading}
-              onClick={handleBriefing}
-            >
-              {briefingLoading ? "Loading…" : "Generate briefing"}
-            </button>
-          </div>
-        ) : (
-          <div className="briefing-content">
-            <div className="briefing-header-row">
-              <div>
-                <div className="briefing-greeting">{briefing.greeting}</div>
-                <div className="briefing-headline">{briefing.headline}</div>
+      {!briefingDismissed[getTodayKey()] && (
+        <div className="daily-briefing-card">
+          {!briefing ? (
+            <div className="briefing-prompt">
+              <h2>Daily Briefing</h2>
+              <p>Get your personalized focus for today</p>
+              <button
+                className="btn btn-primary"
+                disabled={briefingLoading}
+                onClick={handleBriefing}
+              >
+                {briefingLoading ? "Loading…" : "Generate briefing"}
+              </button>
+            </div>
+          ) : (
+            <div className="briefing-content">
+              <div className="briefing-header-row">
+                <div>
+                  <div className="briefing-greeting">{briefing.greeting}</div>
+                  <div className="briefing-headline">{briefing.headline}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  {streak > 0 && (
+                    <div className="streak-indicator">
+                      🔥 {streak}-day streak
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-dismiss-briefing"
+                    onClick={handleDismissBriefing}
+                    title="Hide until tomorrow"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
-              {streak > 0 && (
-                <div className="streak-indicator">
-                  🔥 {streak}-day streak
+
+              <div className="briefing-focus-list">
+                {briefing.focus.map((item, i) => (
+                  <div key={i} className="briefing-focus-item">
+                    <div className="briefing-focus-content">
+                      <span className="briefing-focus-goal">{item.goalTitle}</span>
+                      <span className="briefing-focus-why">{item.whyNow}</span>
+                      <div className="briefing-action-tag">
+                        {item.action.actionTitle}
+                      </div>
+                    </div>
+                    <button
+                      className="btn btn-action-small"
+                      onClick={() => handleBriefingAction(item)}
+                      disabled={busy}
+                    >
+                      {item.action.type === "create_new_action" ? "Add" : "Start"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {!commitments[getTodayKey()] && (
+                <div className="briefing-cta-section">
+                  <button
+                    className="btn btn-commitment"
+                    onClick={handleCommitment}
+                  >
+                    {briefing.cta.label}
+                  </button>
+                  <p className="briefing-cta-microcopy">{briefing.cta.microcopy}</p>
+                </div>
+              )}
+
+              {commitments[getTodayKey()] && (
+                <div className="commitment-confirmed">
+                  ✓ Committed for today
                 </div>
               )}
             </div>
-
-            <div className="briefing-focus-list">
-              {briefing.focus.map((item, i) => (
-                <div key={i} className="briefing-focus-item">
-                  <div className="briefing-focus-content">
-                    <span className="briefing-focus-goal">{item.goalTitle}</span>
-                    <span className="briefing-focus-why">{item.whyNow}</span>
-                    <div className="briefing-action-tag">
-                      {item.action.actionTitle}
-                    </div>
-                  </div>
-                  <button
-                    className="btn btn-action-small"
-                    onClick={() => handleBriefingAction(item)}
-                    disabled={busy}
-                  >
-                    {item.action.type === "create_new_action" ? "Add" : "Start"}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {!commitments[getTodayKey()] && (
-              <div className="briefing-cta-section">
-                <button
-                  className="btn btn-commitment"
-                  onClick={handleCommitment}
-                >
-                  {briefing.cta.label}
-                </button>
-                <p className="briefing-cta-microcopy">{briefing.cta.microcopy}</p>
-              </div>
-            )}
-
-            {commitments[getTodayKey()] && (
-              <div className="commitment-confirmed">
-                ✓ Committed for today
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {error && <div className="error">{error}</div>}
 
