@@ -271,6 +271,15 @@ export function App() {
     actionId?: number;
   } | null>(null);
   const [reflectionInput, setReflectionInput] = useState("");
+  const [wizardOpen, setWizardOpen] = useState<number | null>(null);
+  const [wizardStep, setWizardStep] = useState<'clarity' | 'actions'>('clarity');
+  const [wizardData, setWizardData] = useState({
+    outcome: '',
+    metric: '',
+    horizon: '',
+    selectedActions: [] as string[],
+    customAction: '',
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -345,7 +354,12 @@ export function App() {
     if (result.ok) {
       setTitle("");
       inputRef.current?.focus();
-      load();
+      await load();
+
+      // Auto-open wizard for new goal
+      setWizardOpen(result.value.id);
+      setWizardStep('clarity');
+      setWizardData({ outcome: '', metric: '', horizon: '', selectedActions: [], customAction: '' });
     } else {
       setError(result.error.message);
     }
@@ -662,6 +676,73 @@ export function App() {
     setReflectionPromptData(null);
   };
 
+  const handleWizardClarityComplete = async (skipToActions = false) => {
+    if (!wizardOpen) return;
+
+    if (!skipToActions) {
+      const { outcome, metric, horizon } = wizardData;
+      if (outcome || metric || horizon) {
+        await patchDecision(wizardOpen, {
+          outcome: outcome || undefined,
+          metric: metric || undefined,
+          horizon: horizon || undefined,
+        });
+        await load();
+      }
+    }
+
+    setWizardStep('actions');
+
+    // Generate suggestions with context
+    const goal = decisions.find(d => d.id === wizardOpen);
+    if (goal) {
+      await handleGenerate(goal);
+    }
+  };
+
+  const handleWizardActionsComplete = async () => {
+    if (!wizardOpen) return;
+
+    const { selectedActions } = wizardData;
+
+    if (selectedActions.length === 0) {
+      setError("Please select at least one action");
+      return;
+    }
+
+    setBusy(true);
+    for (const actionTitle of selectedActions) {
+      await addDecision(actionTitle, { parentId: wizardOpen, kind: 'action' });
+    }
+    setBusy(false);
+
+    // Close wizard and reload
+    setWizardOpen(null);
+    setWizardData({ outcome: '', metric: '', horizon: '', selectedActions: [], customAction: '' });
+    await load();
+  };
+
+  const handleWizardClose = () => {
+    setWizardOpen(null);
+    setWizardData({ outcome: '', metric: '', horizon: '', selectedActions: [], customAction: '' });
+    setWizardStep('clarity');
+  };
+
+  const handleRefineGoal = (goalId: number) => {
+    const goal = decisions.find(d => d.id === goalId);
+    if (!goal) return;
+
+    setWizardOpen(goalId);
+    setWizardStep('clarity');
+    setWizardData({
+      outcome: goal.outcome || '',
+      metric: goal.metric || '',
+      horizon: goal.horizon || '',
+      selectedActions: [],
+      customAction: '',
+    });
+  };
+
   const handleBriefing = async () => {
     const todayKey = getTodayKey();
 
@@ -759,6 +840,206 @@ export function App() {
               <button className="btn btn-secondary" onClick={handleReflectionSkip}>
                 Skip
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {wizardOpen && (
+        <div className="wizard-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) handleWizardClose();
+        }}>
+          <div className="wizard-modal">
+            <div className="wizard-header">
+              <button className="btn-wizard-close" onClick={handleWizardClose}>×</button>
+              <div className="wizard-title-row">
+                <div className="wizard-title">{decisions.find(d => d.id === wizardOpen)?.title || "Refine Goal"}</div>
+                <div className="wizard-step">Step {wizardStep === 'clarity' ? '1' : '2'} of 2</div>
+              </div>
+            </div>
+
+            <div className="wizard-progress-bar">
+              <div className="wizard-progress-fill" style={{ width: wizardStep === 'clarity' ? '50%' : '100%' }} />
+            </div>
+
+            <div className="wizard-content">
+              {wizardStep === 'clarity' && (
+                <>
+                  <p className="wizard-description">
+                    Define what success looks like to stay focused and measure progress.
+                  </p>
+
+                  <div className="wizard-clarity-field">
+                    <label className="wizard-field-label">
+                      <span className="wizard-field-label-icon">🎯</span>
+                      What does success look like?
+                    </label>
+                    <textarea
+                      className="wizard-field-input"
+                      rows={3}
+                      value={wizardData.outcome}
+                      onChange={(e) => setWizardData({ ...wizardData, outcome: e.target.value })}
+                      placeholder="e.g., All team members feel heard in meetings"
+                    />
+                    <div className="wizard-field-hint">Describe the desired end state</div>
+                  </div>
+
+                  <div className="wizard-clarity-field">
+                    <label className="wizard-field-label">
+                      <span className="wizard-field-label-icon">📊</span>
+                      How will you measure it?
+                    </label>
+                    <input
+                      className="wizard-field-input"
+                      type="text"
+                      value={wizardData.metric}
+                      onChange={(e) => setWizardData({ ...wizardData, metric: e.target.value })}
+                      placeholder="e.g., Weekly satisfaction score"
+                    />
+                    <div className="wizard-field-hint">What number tells you it's working?</div>
+                  </div>
+
+                  <div className="wizard-clarity-field">
+                    <label className="wizard-field-label">
+                      <span className="wizard-field-label-icon">📅</span>
+                      By when?
+                    </label>
+                    <input
+                      className="wizard-field-input"
+                      type="text"
+                      value={wizardData.horizon}
+                      onChange={(e) => setWizardData({ ...wizardData, horizon: e.target.value })}
+                      placeholder="e.g., End of Q1"
+                    />
+                    <div className="wizard-field-hint">Set a realistic timeline</div>
+                  </div>
+                </>
+              )}
+
+              {wizardStep === 'actions' && (
+                <div className="wizard-actions-section">
+                  <p className="wizard-description">
+                    Pick actions to start today. These will become concrete tasks under your goal.
+                  </p>
+
+                  {generating ? (
+                    <div className="wizard-loading">
+                      <div className="skeleton-card" />
+                      <div className="skeleton-card" />
+                      <div className="skeleton-card" />
+                    </div>
+                  ) : (
+                    <>
+                      {(suggestionStore[wizardOpen] ?? [])
+                        .filter(s => s.lifecycle === 'new' && s.kind !== 'outcome' && s.kind !== 'metric' && s.kind !== 'horizon')
+                        .slice(0, 4)
+                        .map((s) => (
+                          <label key={s.id} className="wizard-action-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={wizardData.selectedActions.includes(s.title)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setWizardData({
+                                    ...wizardData,
+                                    selectedActions: [...wizardData.selectedActions, s.title],
+                                  });
+                                } else {
+                                  setWizardData({
+                                    ...wizardData,
+                                    selectedActions: wizardData.selectedActions.filter(a => a !== s.title),
+                                  });
+                                }
+                              }}
+                            />
+                            <div className="wizard-action-content">
+                              <div className="wizard-action-title">{s.title}</div>
+                              {s.rationale && <div className="wizard-action-rationale">{s.rationale}</div>}
+                            </div>
+                          </label>
+                        ))}
+
+                      <div className="wizard-custom-action-field">
+                        <input
+                          type="text"
+                          value={wizardData.customAction}
+                          onChange={(e) => setWizardData({ ...wizardData, customAction: e.target.value })}
+                          placeholder="+ Add your own action"
+                        />
+                        <button
+                          className="btn-wizard-add-custom"
+                          disabled={!wizardData.customAction.trim()}
+                          onClick={() => {
+                            if (wizardData.customAction.trim()) {
+                              setWizardData({
+                                ...wizardData,
+                                selectedActions: [...wizardData.selectedActions, wizardData.customAction.trim()],
+                                customAction: '',
+                              });
+                            }
+                          }}
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {wizardData.selectedActions.length > 0 && (
+                        <div className="wizard-selected-actions">
+                          <div className="wizard-section-label">Selected actions</div>
+                          {wizardData.selectedActions.map((action, i) => (
+                            <div key={i} className="wizard-action-chip">
+                              <span>{action}</span>
+                              <button
+                                className="btn-remove-action"
+                                onClick={() => {
+                                  setWizardData({
+                                    ...wizardData,
+                                    selectedActions: wizardData.selectedActions.filter((_, idx) => idx !== i),
+                                  });
+                                }}
+                              >×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(suggestionStore[wizardOpen] ?? [])
+                        .filter(s => s.lifecycle === 'new' && s.kind !== 'outcome' && s.kind !== 'metric' && s.kind !== 'horizon')
+                        .length === 0 && wizardData.selectedActions.length === 0 && (
+                        <div className="wizard-empty-state">
+                          No suggestions yet. Add your own actions above or skip to add them later.
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="wizard-footer">
+              {wizardStep === 'clarity' ? (
+                <>
+                  <button className="btn-wizard-skip" onClick={() => handleWizardClarityComplete(true)}>
+                    Skip for now
+                  </button>
+                  <button className="btn-wizard-continue" onClick={() => handleWizardClarityComplete(false)}>
+                    Continue →
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn-wizard-back" onClick={() => setWizardStep('clarity')}>
+                    ← Back
+                  </button>
+                  <button
+                    className="btn-wizard-finish"
+                    onClick={handleWizardActionsComplete}
+                    disabled={wizardData.selectedActions.length === 0}
+                  >
+                    Add {wizardData.selectedActions.length} action{wizardData.selectedActions.length !== 1 ? 's' : ''}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -886,66 +1167,50 @@ export function App() {
             return (
               <div key={d.id} className={isExpanded || isSuggestionsOpen ? "decision-group decision-group-expanded" : "decision-group"}>
                 <div className="decision-card">
-                  <ClarityRing score={clarityScore(d)} />
-                  <span className="decision-id">#{d.id}</span>
-                  <span className="decision-title">{d.title}</span>
-                  {d.status === "todo" && (
-                    <button className="btn btn-start" disabled={busy} onClick={() => handleStart(d.id)}>Start</button>
-                  )}
-                  {d.status === "in-progress" && (
-                    <button className="btn btn-done" disabled={busy} onClick={() => handleDone(d.id)}>Done</button>
-                  )}
+                  <div className="decision-card-header">
+                    <div className="decision-card-main">
+                      <ClarityRing score={clarityScore(d)} />
+                      <div className="decision-content">
+                        <div className="decision-title-row">
+                          <span className="decision-title">{d.title}</span>
+                          <span className="decision-id">#{d.id}</span>
+                        </div>
+                        {hasDetails && (
+                          <div className="goal-chips">
+                            {d.outcome && <div className="goal-chip goal-chip-outcome" title="Outcome">🎯 {d.outcome}</div>}
+                            {d.metric && <div className="goal-chip goal-chip-metric" title="Metric">📊 {d.metric}</div>}
+                            {d.horizon && <div className="goal-chip goal-chip-horizon" title="Horizon">📅 {d.horizon}</div>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="decision-card-actions">
+                      {d.status !== "done" && (
+                        <button
+                          className="btn btn-refine"
+                          onClick={() => handleRefineGoal(d.id)}
+                        >
+                          Refine
+                        </button>
+                      )}
+                      {d.status === "todo" && (
+                        <button className="btn btn-start" disabled={busy} onClick={() => handleStart(d.id)}>Start</button>
+                      )}
+                      {d.status === "in-progress" && (
+                        <button className="btn btn-done" disabled={busy} onClick={() => handleDone(d.id)}>Done</button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="details-summary-row">
-                  {hasDetails ? (
-                    <span className="details-summary-text">
-                      {[d.outcome, d.metric, d.horizon].filter(Boolean).join(" \u00b7 ")}
-                    </span>
-                  ) : (
-                    <span className="details-summary-placeholder">Add details (outcome, metric, horizon)</span>
-                  )}
-                </div>
-
-                <div className="card-toggles">
-                  <button
-                    className={`toggle-btn ${isExpanded ? "toggle-btn-open" : ""}`}
-                    onClick={() => toggleExpanded(d.id)}
-                  >
-                    {isExpanded ? "\u25bc" : "\u25b6"} Details
-                  </button>
-                  {d.status !== "done" && (
+                {d.status !== "done" && allSuggestions.length > 0 && (
+                  <div className="card-toggles">
                     <button
                       className={`toggle-btn ${isSuggestionsOpen ? "toggle-btn-open" : ""}`}
                       onClick={() => toggleSuggestions(d.id)}
                     >
-                      {isSuggestionsOpen ? "\u25bc" : "\u25b6"} Suggestions
+                      {isSuggestionsOpen ? "\u25bc" : "\u25b6"} Coach
                     </button>
-                  )}
-                </div>
-
-                {isExpanded && (
-                  <div className="details-panel">
-                    {isEditing ? (
-                      <DetailsEditForm
-                        decision={d}
-                        busy={busy}
-                        onSave={(patch) => handleSaveDetails(d.id, patch)}
-                        onCancel={() => setEditingId(null)}
-                      />
-                    ) : (
-                      <div className="details-view">
-                        <DetailRow label="Outcome" value={d.outcome} />
-                        <DetailRow label="Metric" value={d.metric} />
-                        <DetailRow label="Horizon" value={d.horizon} />
-                        <button
-                          className="btn btn-edit"
-                          onClick={() => setEditingId(d.id)}
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    )}
                   </div>
                 )}
 
