@@ -62,7 +62,23 @@ type MorningBriefing = {
   cta: { label: string; microcopy: string };
 };
 
-export type { SuggestionLifecycle, RawSuggestion, ReflectionAnswer, Reflection, BriefingFocusItem, MorningBriefing };
+type ReflectionData = {
+  id: string;
+  createdAt: string;
+  goalId: number;
+  actionId?: number;
+  signals: string[];
+  note?: string;
+};
+
+type ReflectionInput = {
+  goalId: number;
+  actionId?: number;
+  signals: string[];
+  note?: string;
+};
+
+export type { SuggestionLifecycle, RawSuggestion, ReflectionAnswer, Reflection, BriefingFocusItem, MorningBriefing, ReflectionData, ReflectionInput };
 
 export type { Decision, DecisionPatch, ApiResult, Suggestion };
 
@@ -131,5 +147,14 @@ export async function fetchBriefing(reflections?: Reflection[], userName?: strin
 
 export async function resetDecisions(): Promise<ApiResult<Decision[]>> {
   const res = await fetch(`${BASE}/reset`, { method: "POST" });
+  return res.json();
+}
+
+export async function submitReflection(input: ReflectionInput): Promise<ApiResult<ReflectionData>> {
+  const res = await fetch(`${BASE}/reflections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
   return res.json();
 }

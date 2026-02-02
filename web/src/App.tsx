@@ -9,6 +9,7 @@ import {
   generateSuggestions,
   resetDecisions,
   fetchBriefing,
+  submitReflection,
   type Decision,
   type DecisionPatch,
   type Suggestion,
@@ -17,6 +18,7 @@ import {
   type Reflection,
   type MorningBriefing,
   type BriefingFocusItem,
+  type ReflectionInput,
 } from "./api";
 
 const FILTERS = ["all", "todo", "in-progress", "done"] as const;
@@ -280,6 +282,13 @@ export function App() {
     selectedActions: [] as string[],
     customAction: '',
   });
+  const [showReflectionSheet, setShowReflectionSheet] = useState(false);
+  const [reflectionSheetData, setReflectionSheetData] = useState<{
+    goalId: number;
+    actionId: number;
+  } | null>(null);
+  const [reflectionSignals, setReflectionSignals] = useState<string[]>([]);
+  const [reflectionNote, setReflectionNote] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -396,22 +405,13 @@ export function App() {
     if (result.ok) {
       const task = result.value;
 
-      // Show reflection prompt for completed actions
+      // Show reflection sheet for completed actions
       if (task.parentId) {
-        const prompts = [
-          "What helped you make progress?",
-          "What slowed you down?",
-          "What would you do differently next time?"
-        ];
-        const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)];
-
-        setReflectionPromptData({
-          prompt: randomPrompt,
-          promptId: `done_${Date.now()}`,
-          actionId: id,
+        setReflectionSheetData({
           goalId: task.parentId,
+          actionId: id,
         });
-        setShowReflectionPrompt(true);
+        setShowReflectionSheet(true);
       }
 
       await load();
@@ -674,6 +674,51 @@ export function App() {
     setShowReflectionPrompt(false);
     setReflectionInput("");
     setReflectionPromptData(null);
+  };
+
+  const handleReflectionSheetSave = async () => {
+    if (!reflectionSheetData) return;
+
+    if (reflectionSignals.length === 0) {
+      setError("Please select at least one signal");
+      return;
+    }
+
+    const input: ReflectionInput = {
+      goalId: reflectionSheetData.goalId,
+      actionId: reflectionSheetData.actionId,
+      signals: reflectionSignals,
+      note: reflectionNote.trim() || undefined,
+    };
+
+    setError(null);
+    const result = await submitReflection(input);
+
+    if (result.ok) {
+      setShowReflectionSheet(false);
+      setReflectionSheetData(null);
+      setReflectionSignals([]);
+      setReflectionNote("");
+    } else {
+      setError(result.error.message);
+    }
+  };
+
+  const handleReflectionSheetSkip = () => {
+    setShowReflectionSheet(false);
+    setReflectionSheetData(null);
+    setReflectionSignals([]);
+    setReflectionNote("");
+  };
+
+  const toggleReflectionSignal = (signal: string) => {
+    setReflectionSignals((prev) => {
+      if (prev.includes(signal)) {
+        return prev.filter((s) => s !== signal);
+      } else {
+        return [...prev, signal];
+      }
+    });
   };
 
   const handleWizardClarityComplete = async (skipToActions = false) => {
@@ -1040,6 +1085,80 @@ export function App() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showReflectionSheet && reflectionSheetData && (
+        <div className="wizard-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) handleReflectionSheetSkip();
+        }}>
+          <div className="wizard-modal reflection-sheet-modal">
+            <div className="wizard-header">
+              <button className="btn-wizard-close" onClick={handleReflectionSheetSkip}>×</button>
+              <div className="wizard-title-row">
+                <div className="wizard-title">Quick Reflection</div>
+                <div className="wizard-step">What helped or slowed you down?</div>
+              </div>
+            </div>
+
+            <div className="wizard-content">
+              <p className="wizard-description">
+                Help us understand your experience to provide better suggestions.
+              </p>
+
+              <div className="reflection-signals">
+                <div className="wizard-section-label">Select what applies</div>
+                <div className="signal-chips">
+                  {[
+                    { id: 'clear_step', label: 'Clear step', icon: '✓' },
+                    { id: 'enough_time', label: 'Enough time', icon: '⏱' },
+                    { id: 'context_switching', label: 'Context switching', icon: '↔' },
+                    { id: 'low_energy', label: 'Low energy', icon: '🔋' },
+                    { id: 'unclear_action', label: 'Unclear action', icon: '?' },
+                  ].map((signal) => (
+                    <button
+                      key={signal.id}
+                      className={`signal-chip ${reflectionSignals.includes(signal.id) ? 'signal-chip-selected' : ''}`}
+                      onClick={() => toggleReflectionSignal(signal.id)}
+                    >
+                      <span className="signal-chip-icon">{signal.icon}</span>
+                      <span className="signal-chip-label">{signal.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="wizard-clarity-field">
+                <label className="wizard-field-label">
+                  Note (optional)
+                </label>
+                <textarea
+                  className="wizard-field-input"
+                  rows={2}
+                  maxLength={140}
+                  value={reflectionNote}
+                  onChange={(e) => setReflectionNote(e.target.value)}
+                  placeholder="Any additional context..."
+                />
+                <div className="wizard-field-hint">
+                  {reflectionNote.length}/140 characters
+                </div>
+              </div>
+            </div>
+
+            <div className="wizard-footer">
+              <button className="btn-wizard-skip" onClick={handleReflectionSheetSkip}>
+                Skip
+              </button>
+              <button
+                className="btn-wizard-continue"
+                onClick={handleReflectionSheetSave}
+                disabled={reflectionSignals.length === 0}
+              >
+                Save
+              </button>
             </div>
           </div>
         </div>

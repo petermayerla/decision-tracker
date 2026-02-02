@@ -1974,6 +1974,75 @@ h1 {
   background: rgba(77, 157, 224, 0.22);
 }
 
+/* ── Reflection Sheet ── */
+.reflection-sheet-modal {
+  max-height: 80vh;
+}
+
+@media (min-width: 768px) {
+  .reflection-sheet-modal {
+    max-width: 500px;
+  }
+}
+
+.reflection-signals {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.signal-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.signal-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  min-height: var(--touch-target);
+}
+
+.signal-chip:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+}
+
+.signal-chip:active {
+  transform: scale(0.95);
+}
+
+.signal-chip-selected {
+  background: var(--accent-dim);
+  border-color: var(--accent-glow);
+  color: var(--accent);
+}
+
+.signal-chip-selected:hover {
+  background: var(--accent-glow);
+}
+
+.signal-chip-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.signal-chip-label {
+  line-height: 1;
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

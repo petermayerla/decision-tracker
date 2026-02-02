@@ -6,6 +6,7 @@ import { TaskStatus } from "../../src/task-tracker.js";
 import { getSuggestions } from "../../src/suggestions.js";
 import { generateSuggestionsLLM } from "./decision-suggestions.js";
 import { generateBriefingLLM } from "./morning-briefing.js";
+import { appendReflection, listReflections } from "./reflections-store.js";
 
 const app = express();
 
@@ -163,10 +164,39 @@ app.post("/briefing", async (req, res) => {
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allTasks = listResult.ok ? listResult.value : [];
-  const reflections = Array.isArray(req.body.reflections) ? req.body.reflections : undefined;
+
+  // Load reflections from store (last 14 days)
+  const storedReflections = listReflections({ sinceDays: 14 });
+
+  // Map to ReflectionInput format expected by generateBriefingLLM
+  const reflectionsInput = storedReflections.map((ref) => ({
+    decisionId: ref.goalId,
+    createdAt: ref.createdAt,
+    answers: [
+      { promptId: "signals", value: ref.signals.join(", ") },
+      ...(ref.note ? [{ promptId: "note", value: ref.note }] : []),
+    ],
+  }));
+
   const userName = typeof req.body.userName === "string" ? req.body.userName : undefined;
-  const briefing = await generateBriefingLLM(allTasks, reflections, userName);
+  const briefing = await generateBriefingLLM(allTasks, reflectionsInput, userName);
   res.json({ ok: true, value: briefing });
+});
+
+app.post("/reflections", (req, res) => {
+  const { goalId, actionId, signals, note } = req.body;
+
+  const result = appendReflection({ goalId, actionId, signals, note });
+  res.status(result.ok ? 201 : 400).json(result);
+});
+
+app.get("/reflections", (req, res) => {
+  const goalId = req.query.goalId ? Number(req.query.goalId) : undefined;
+  const actionId = req.query.actionId ? Number(req.query.actionId) : undefined;
+  const sinceDays = req.query.days ? Number(req.query.days) : undefined;
+
+  const reflections = listReflections({ goalId, actionId, sinceDays });
+  res.json({ ok: true, value: reflections });
 });
 
 app.post("/reset", (_req, res) => {
