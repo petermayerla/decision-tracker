@@ -117,12 +117,13 @@ export async function completeDecision(id: number): Promise<ApiResult<Decision>>
   return res.json();
 }
 
-export async function fetchBriefing(reflections?: Reflection[]): Promise<ApiResult<MorningBriefing>> {
+export async function fetchBriefing(reflections?: Reflection[], userName?: string): Promise<ApiResult<MorningBriefing>> {
   const res = await fetch(`${BASE}/briefing`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       reflections: reflections && reflections.length > 0 ? reflections : undefined,
+      userName,
     }),
   });
   return res.json();

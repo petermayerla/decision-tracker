@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import confetti from 'canvas-confetti';
 import {
   fetchDecisions,
   addDecision,
@@ -38,6 +39,9 @@ function hashSuggestionId(goalId: number, kind: string | undefined, title: strin
 type SuggestionStore = Record<number, Suggestion[]>;
 
 const LS_KEY = "suggestions-by-goal";
+const LS_USER_NAME = "user-name";
+const LS_DAILY_COMMITMENTS = "daily-commitments";
+const LS_BRIEFING_CACHE = "briefing-cache";
 
 function loadSuggestionStore(): SuggestionStore {
   try {
@@ -49,6 +53,42 @@ function loadSuggestionStore(): SuggestionStore {
 
 function saveSuggestionStore(store: SuggestionStore) {
   localStorage.setItem(LS_KEY, JSON.stringify(store));
+}
+
+function loadUserName(): string | null {
+  return localStorage.getItem(LS_USER_NAME);
+}
+
+function saveUserName(name: string) {
+  localStorage.setItem(LS_USER_NAME, name);
+}
+
+function loadDailyCommitments(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(LS_DAILY_COMMITMENTS) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveDailyCommitments(commitments: Record<string, boolean>) {
+  localStorage.setItem(LS_DAILY_COMMITMENTS, JSON.stringify(commitments));
+}
+
+function loadBriefingCache(): Record<string, MorningBriefing> {
+  try {
+    return JSON.parse(localStorage.getItem(LS_BRIEFING_CACHE) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveBriefingCache(cache: Record<string, MorningBriefing>) {
+  localStorage.setItem(LS_BRIEFING_CACHE, JSON.stringify(cache));
+}
+
+function getTodayKey(): string {
+  return new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 }
 
 function mergeSuggestions(
@@ -178,6 +218,12 @@ export function App() {
   const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingDismissed, setBriefingDismissed] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [commitments, setCommitments] = useState<Record<string, boolean>>({});
+  const [briefingCache, setBriefingCache] = useState<Record<string, MorningBriefing>>({});
+  const [streak, setStreak] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -188,6 +234,33 @@ export function App() {
     });
   }, []);
 
+  const calculateStreak = useCallback(() => {
+    const commitments = loadDailyCommitments();
+    const today = new Date();
+    let currentStreak = 0;
+
+    // Check backwards from yesterday
+    for (let i = 1; i < 365; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toISOString().split('T')[0];
+
+      if (commitments[dateKey]) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Add today if committed
+    const todayKey = getTodayKey();
+    if (commitments[todayKey]) {
+      currentStreak++;
+    }
+
+    setStreak(currentStreak);
+  }, []);
+
   const load = async () => {
     const status = filter === "all" ? undefined : filter;
     const result = await fetchDecisions(status);
@@ -195,7 +268,24 @@ export function App() {
   };
 
   useEffect(() => { load(); }, [filter]);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  useEffect(() => {
+    inputRef.current?.focus();
+
+    // Load user name
+    const savedName = loadUserName();
+    if (!savedName) {
+      setShowNamePrompt(true);
+    } else {
+      setUserName(savedName);
+    }
+
+    // Load commitments and briefing cache
+    setCommitments(loadDailyCommitments());
+    setBriefingCache(loadBriefingCache());
+
+    // Calculate streak
+    calculateStreak();
+  }, [calculateStreak]);
 
   const handleAdd = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -314,6 +404,8 @@ export function App() {
       saveReflectionStore({});
       setBriefing(null);
       setBriefingDismissed(false);
+      setBriefingCache({});
+      saveBriefingCache({});
       load();
     } else {
       setError(result.error.message);
@@ -344,15 +436,107 @@ export function App() {
     });
   };
 
+  const handleNameSubmit = () => {
+    const trimmed = nameInput.trim();
+    if (trimmed) {
+      saveUserName(trimmed);
+      setUserName(trimmed);
+      setShowNamePrompt(false);
+      setNameInput("");
+    }
+  };
+
+  const triggerConfetti = (currentStreak: number) => {
+    const milestones = [3, 7, 14, 30];
+    const isMilestone = milestones.includes(currentStreak);
+
+    if (isMilestone) {
+      // Big celebration for milestones
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+
+      // Extra burst for big milestones
+      if (currentStreak >= 14) {
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 }
+          });
+          confetti({
+            particleCount: 50,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 }
+          });
+        }, 250);
+      }
+    } else {
+      // Subtle confetti for regular days
+      confetti({
+        particleCount: 30,
+        spread: 40,
+        origin: { y: 0.6 }
+      });
+    }
+  };
+
+  const handleCommitment = () => {
+    const todayKey = getTodayKey();
+
+    // Mark today as committed
+    const newCommitments = { ...commitments, [todayKey]: true };
+    setCommitments(newCommitments);
+    saveDailyCommitments(newCommitments);
+
+    // Calculate new streak
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().split('T')[0];
+
+    let newStreak = 1;
+    if (commitments[yesterdayKey]) {
+      // Continue streak
+      newStreak = streak + 1;
+    }
+    // else: streak resets to 1
+
+    setStreak(newStreak);
+
+    // Trigger confetti
+    triggerConfetti(newStreak);
+  };
+
   const handleBriefing = async () => {
+    const todayKey = getTodayKey();
+
+    // Check cache first
+    if (briefingCache[todayKey]) {
+      setBriefing(briefingCache[todayKey]);
+      setBriefingDismissed(false);
+      return;
+    }
+
+    // Fetch new briefing
     setBriefingLoading(true);
     setBriefingDismissed(false);
     setError(null);
+
     const allReflections = Object.values(reflectionStore);
-    const result = await fetchBriefing(allReflections.length > 0 ? allReflections : undefined);
+    const result = await fetchBriefing(allReflections.length > 0 ? allReflections : undefined, userName || undefined);
     setBriefingLoading(false);
+
     if (result.ok) {
       setBriefing(result.value);
+
+      // Cache the result
+      const newCache = { ...briefingCache, [todayKey]: result.value };
+      setBriefingCache(newCache);
+      saveBriefingCache(newCache);
     } else {
       setError(result.error.message);
     }
@@ -375,6 +559,26 @@ export function App() {
 
   return (
     <div className="container">
+      {showNamePrompt && (
+        <div className="name-prompt-overlay">
+          <div className="name-prompt-modal">
+            <h3>Welcome!</h3>
+            <p>What's your name?</p>
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+              placeholder="Your name"
+              autoFocus
+            />
+            <button className="btn btn-primary" onClick={handleNameSubmit}>
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="header-row">
         <h1>Decisions</h1>
         <button className="btn btn-reset" disabled={busy} onClick={handleReset}>Reset</button>
@@ -392,45 +596,74 @@ export function App() {
         ))}
       </div>
 
-      <div className="briefing-bar">
-        <button className="btn btn-briefing" disabled={briefingLoading} onClick={handleBriefing}>
-          {briefingLoading ? "Loading\u2026" : "Morning briefing"}
-        </button>
-      </div>
-
-      {briefing && !briefingDismissed && (
-        <div className="briefing-panel">
-          <div className="briefing-header">
-            <div>
-              <div className="briefing-greeting">{briefing.greeting}</div>
-              <div className="briefing-headline">{briefing.headline}</div>
-            </div>
-            <button className="btn btn-dismiss-reflection" onClick={() => setBriefingDismissed(true)}>Hide</button>
+      <div className="daily-briefing-card">
+        {!briefing ? (
+          <div className="briefing-prompt">
+            <h2>Daily Briefing</h2>
+            <p>Get your personalized focus for today</p>
+            <button
+              className="btn btn-primary"
+              disabled={briefingLoading}
+              onClick={handleBriefing}
+            >
+              {briefingLoading ? "Loading…" : "Generate briefing"}
+            </button>
           </div>
-          <div className="briefing-focus-list">
-            {briefing.focus.map((item, i) => (
-              <div key={i} className="briefing-focus-item">
-                <div className="briefing-focus-content">
-                  <span className="briefing-focus-goal">{item.goalTitle}</span>
-                  <span className="briefing-focus-why">{item.whyNow}</span>
-                </div>
-                <button
-                  className="btn btn-start"
-                  disabled={busy}
-                  onClick={() => handleBriefingAction(item)}
-                >
-                  {item.action.type === "finish_existing_action" ? "Done" :
-                   item.action.type === "start_existing_action" ? "Start" : "Create"}
-                </button>
+        ) : (
+          <div className="briefing-content">
+            <div className="briefing-header-row">
+              <div>
+                <div className="briefing-greeting">{briefing.greeting}</div>
+                <div className="briefing-headline">{briefing.headline}</div>
               </div>
-            ))}
+              {streak > 0 && (
+                <div className="streak-indicator">
+                  🔥 {streak}-day streak
+                </div>
+              )}
+            </div>
+
+            <div className="briefing-focus-list">
+              {briefing.focus.map((item, i) => (
+                <div key={i} className="briefing-focus-item">
+                  <div className="briefing-focus-content">
+                    <span className="briefing-focus-goal">{item.goalTitle}</span>
+                    <span className="briefing-focus-why">{item.whyNow}</span>
+                    <div className="briefing-action-tag">
+                      {item.action.actionTitle}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn-action-small"
+                    onClick={() => handleBriefingAction(item)}
+                    disabled={busy}
+                  >
+                    {item.action.type === "create_new_action" ? "Add" : "Start"}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {!commitments[getTodayKey()] && (
+              <div className="briefing-cta-section">
+                <button
+                  className="btn btn-commitment"
+                  onClick={handleCommitment}
+                >
+                  {briefing.cta.label}
+                </button>
+                <p className="briefing-cta-microcopy">{briefing.cta.microcopy}</p>
+              </div>
+            )}
+
+            {commitments[getTodayKey()] && (
+              <div className="commitment-confirmed">
+                ✓ Committed for today
+              </div>
+            )}
           </div>
-          <div className="briefing-cta">
-            <span className="briefing-cta-label">{briefing.cta.label}</span>
-            <span className="briefing-cta-microcopy">{briefing.cta.microcopy}</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && <div className="error">{error}</div>}
 

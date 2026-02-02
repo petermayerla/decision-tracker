@@ -891,6 +891,184 @@ h1 {
   color: var(--text-muted);
 }
 
+/* ── Name Prompt Modal ── */
+.name-prompt-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.name-prompt-modal {
+  background: #1a1a1a;
+  padding: 2rem;
+  border-radius: 12px;
+  border: 1px solid #2a2a2a;
+  max-width: 400px;
+  width: 90%;
+}
+
+.name-prompt-modal h3 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+}
+
+.name-prompt-modal p {
+  margin: 0 0 1rem 0;
+  color: #888;
+}
+
+.name-prompt-modal input {
+  width: 100%;
+  padding: 0.75rem;
+  background: #0a0a0a;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.name-prompt-modal input:focus {
+  outline: none;
+  border-color: #34d399;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  color: #0a0a0a;
+  font-weight: 700;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s;
+  width: 100%;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+/* ── Daily Briefing Card ── */
+.daily-briefing-card {
+  background: linear-gradient(135deg, #1a1a1a 0%, #141414 100%);
+  border: 1px solid #2a2a2a;
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(12px);
+}
+
+.briefing-prompt {
+  text-align: center;
+}
+
+.briefing-prompt h2 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+  font-size: 1.5rem;
+}
+
+.briefing-prompt p {
+  margin: 0 0 1rem 0;
+  color: #888;
+}
+
+.briefing-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.streak-indicator {
+  background: rgba(251, 146, 60, 0.1);
+  border: 1px solid rgba(251, 146, 60, 0.3);
+  color: #fb923c;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.briefing-action-tag {
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #60a5fa;
+  display: inline-block;
+}
+
+.btn-action-small {
+  background: rgba(77, 157, 224, 0.15);
+  color: var(--status-progress);
+  border: 1px solid rgba(77, 157, 224, 0.2);
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.btn-action-small:hover:not(:disabled) {
+  background: rgba(77, 157, 224, 0.25);
+}
+
+.briefing-cta-section {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #2a2a2a;
+}
+
+.btn-commitment {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.3);
+}
+
+.btn-commitment:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(52, 211, 153, 0.4);
+}
+
+.btn-commitment:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.briefing-cta-microcopy {
+  margin: 0.75rem 0 0 0;
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.commitment-confirmed {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  border-radius: 8px;
+  color: #34d399;
+  font-weight: 600;
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
