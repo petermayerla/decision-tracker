@@ -170,15 +170,32 @@ List reflections with optional filters.
 ### Suggestions
 
 #### `POST /suggestions`
-Generate LLM-powered suggestions for a goal.
+Generate LLM-powered, friction-aware suggestions for a goal.
 
 **Request Body:**
 ```json
 {
-  "decisionId": 1,
-  "includeActions": true
+  "id": 1,
+  "title": "Improve team communication",
+  "status": "todo",
+  "outcome": "All team members feel heard",
+  "metric": "Weekly satisfaction score",
+  "horizon": "End of Q1",
+  "suggestionHistory": [
+    {
+      "title": "Schedule weekly 1-on-1s",
+      "kind": "execution",
+      "lifecycle": "dismissed"
+    }
+  ]
 }
 ```
+
+**Parameters:**
+- `id` (required): Goal ID
+- `title` (required): Goal title
+- `status`, `outcome`, `metric`, `horizon` (optional): Current goal state
+- `suggestionHistory` (optional): Previously shown suggestions to avoid repetition
 
 **Response:**
 ```json
@@ -187,16 +204,37 @@ Generate LLM-powered suggestions for a goal.
   "value": {
     "suggestions": [
       {
-        "outcome": "Team satisfaction score of 8/10",
-        "metric": "Weekly pulse survey results",
-        "horizon": "End of Q1 2026",
-        "actions": ["Schedule 1-on-1s", "Create feedback form"]
+        "title": "Block a single 2-hour slot this week for meeting design work",
+        "rationale": "Your reflection shows context-switching killed your focus. Instead of adding another recurring meeting, carve out uninterrupted time to fix the root problem.",
+        "kind": "execution"
+      },
+      {
+        "title": "Check: are you solving a real problem or reacting to one loud complaint?",
+        "rationale": "Before building a solution, confirm this is a team-wide issue and not one person's feedback landing during a rough week.",
+        "kind": "validation"
       }
-    ],
-    "usedLLM": true
+    ]
   }
 }
 ```
+
+**Friction-Aware Behavior:**
+
+The system automatically detects friction signals from past reflections and adapts suggestions:
+
+- **`context_switching`** → Proposes single-task, low-context actions (one doc, one tab, one call)
+- **`low_energy`** → Proposes ≤5 minute micro-starts or low-energy variants
+- **`unclear_action`** → Proposes rewrites with clear deliverables
+- **`enough_time` absent** → Assumes time is scarce, keeps actions short
+
+**Suggestion Mix (max 4):**
+- Exactly 1 **validation** suggestion (quick check, 5-10 min assumption test)
+- Exactly 1 **friction reducer** if friction signals exist
+- Remaining suggestions prioritize missing fields: `outcome` > `metric` > `horizon`
+
+**Duplicate Prevention:**
+- Avoids proposing actions that duplicate existing child actions (siblingActions)
+- Avoids repeating suggestions from `suggestionHistory` (semantically similar titles)
 
 **Behavior:**
 - Uses Claude API if `ANTHROPIC_API_KEY` is set and valid
@@ -204,7 +242,7 @@ Generate LLM-powered suggestions for a goal.
   - No API key configured
   - API request fails
   - Rate limit exceeded
-- Includes past reflections in prompt for context-aware suggestions
+- Automatically includes reflections from last 14 days for context-aware suggestions
 
 #### `GET /suggestions`
 Check if suggestions have been generated for a goal.
@@ -212,23 +250,17 @@ Check if suggestions have been generated for a goal.
 ### Briefing
 
 #### `POST /briefing`
-Generate a personalized morning briefing.
+Generate a personalized, momentum-focused morning briefing.
 
 **Request Body:**
 ```json
 {
-  "userName": "Alex",
-  "reflections": [
-    {
-      "decisionId": 1,
-      "createdAt": "2026-02-01T10:00:00.000Z",
-      "answers": [
-        {"promptId": "signals", "value": "clear_step, enough_time"}
-      ]
-    }
-  ]
+  "userName": "Alex"
 }
 ```
+
+**Parameters:**
+- `userName` (optional): User's name for personalized greeting
 
 **Response:**
 ```json
@@ -236,27 +268,72 @@ Generate a personalized morning briefing.
   "ok": true,
   "value": {
     "greeting": "Good morning, Alex",
-    "headline": "Focus on 3 actions today to build momentum",
+    "headline": "Two quick wins to build momentum—one to help Andreas, one to reduce meeting chaos",
     "focus": [
       {
-        "goalId": 1,
+        "goalId": 4,
+        "goalTitle": "Onboard Andreas on my new app",
+        "whyNow": "No actions yet and Andreas is waiting—get something started today",
+        "action": {
+          "type": "create_new_action",
+          "actionTitle": "Send Andreas a 3-minute demo video or walkthrough doc"
+        }
+      },
+      {
+        "goalId": 10,
         "goalTitle": "Improve team communication",
-        "title": "Schedule 1-on-1s with each team member",
-        "whyNow": "Early relationship building creates trust",
+        "whyNow": "You've flagged too many meetings as a blocker—this standup can replace ad-hoc interruptions",
         "action": {
           "type": "start_existing_action",
-          "actionId": 2,
-          "actionTitle": "Schedule weekly 1-on-1s"
+          "actionId": 11,
+          "actionTitle": "Schedule weekly team standup"
         }
       }
     ],
     "cta": {
       "label": "Let's do it",
-      "microcopy": "Small steps, big impact"
+      "microcopy": "Focus on one uninterrupted block—you work best that way"
     }
   }
 }
 ```
+
+**Momentum-Focused Behavior:**
+
+**Core Principles:**
+- Today matters more than completeness
+- One small committed action beats many good ideas
+- Momentum is the goal
+
+**Goal Selection (max 2):**
+Prioritizes:
+- Goals already in-progress
+- Goals with approaching horizon
+- Goals that recently stalled (based on reflections)
+
+Avoids:
+- Goals marked as done
+- More than two focus items
+
+**Action Selection Hierarchy:**
+1. **Finish** an in-progress action (highest priority)
+2. **Start** the most relevant todo action
+3. **Create** one new action that:
+   - Can be started in under 15 minutes
+   - Is concrete and unambiguous
+   - Clearly advances the goal
+
+**Reflection-Aware Adaptation:**
+- **"low energy"** → Proposes lighter, preparation-type action
+- **"unclear action"** → Proposes clarifying step
+- **"context switching"** → Proposes focused, single-task action
+- Never repeats actions that clearly didn't work before
+
+**Commitment Shaping:**
+- User should feel: "Yes, I can do this now"
+- Avoids vague phrasing
+- Avoids repeating goal title verbatim in action title
+- CTA microcopy is reflection-aware (references user's friction signals)
 
 ## Testing
 
