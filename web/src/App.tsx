@@ -282,6 +282,8 @@ export function App() {
     selectedActions: [] as string[],
     customAction: '',
   });
+  const [showHorizonPicker, setShowHorizonPicker] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState<'outcome' | 'metric' | 'horizon' | null>(null);
   const [showReflectionSheet, setShowReflectionSheet] = useState(false);
   const [reflectionSheetData, setReflectionSheetData] = useState<{
     goalId: number;
@@ -833,6 +835,75 @@ export function App() {
     });
   };
 
+  const handleSuggestField = async (field: 'outcome' | 'metric' | 'horizon') => {
+    if (!wizardOpen) return;
+
+    const goal = decisions.find(d => d.id === wizardOpen);
+    if (!goal) return;
+
+    setLoadingSuggestions(field);
+    setError(null);
+
+    try {
+      const result = await generateSuggestions(goal);
+
+      if (result.ok && result.value.suggestions.length > 0) {
+        // Find first suggestion with the requested field
+        const suggestion = result.value.suggestions.find(s => s[field]);
+        if (suggestion && suggestion[field]) {
+          setWizardData({
+            ...wizardData,
+            [field]: suggestion[field],
+          });
+        } else {
+          setError(`No ${field} suggestion available`);
+        }
+      }
+    } catch (err) {
+      setError(`Failed to fetch suggestion: ${err}`);
+    } finally {
+      setLoadingSuggestions(null);
+    }
+  };
+
+  const handleSelectHorizonChip = (days: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+
+    let label = '';
+    if (days === 3) label = '3 days';
+    else if (days === 7) label = '1 week';
+    else if (days === 14) label = '2 weeks';
+    else if (days === 28) label = '4 weeks';
+    else label = `${days} days`;
+
+    setWizardData({
+      ...wizardData,
+      horizon: label,
+    });
+    setShowHorizonPicker(false);
+  };
+
+  const handleSelectHorizonRelative = (type: 'month' | 'quarter') => {
+    const date = new Date();
+    let label = '';
+
+    if (type === 'month') {
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      label = 'End of month';
+    } else {
+      const quarter = Math.floor(date.getMonth() / 3);
+      const lastMonth = (quarter + 1) * 3;
+      label = `End of Q${quarter + 1}`;
+    }
+
+    setWizardData({
+      ...wizardData,
+      horizon: label,
+    });
+    setShowHorizonPicker(false);
+  };
+
   const handleBriefing = async () => {
     const todayKey = getTodayKey();
 
@@ -962,10 +1033,20 @@ export function App() {
                   </p>
 
                   <div className="wizard-clarity-field">
-                    <label className="wizard-field-label">
-                      <span className="wizard-field-label-icon">🎯</span>
-                      What does success look like?
-                    </label>
+                    <div className="wizard-field-header">
+                      <label className="wizard-field-label">
+                        <span className="wizard-field-label-icon">🎯</span>
+                        What does success look like?
+                      </label>
+                      <button
+                        type="button"
+                        className="btn-suggest"
+                        onClick={() => handleSuggestField('outcome')}
+                        disabled={loadingSuggestions !== null}
+                      >
+                        {loadingSuggestions === 'outcome' ? '...' : '✨ Suggest'}
+                      </button>
+                    </div>
                     <textarea
                       className="wizard-field-input"
                       rows={3}
@@ -977,10 +1058,20 @@ export function App() {
                   </div>
 
                   <div className="wizard-clarity-field">
-                    <label className="wizard-field-label">
-                      <span className="wizard-field-label-icon">📊</span>
-                      How will you measure it?
-                    </label>
+                    <div className="wizard-field-header">
+                      <label className="wizard-field-label">
+                        <span className="wizard-field-label-icon">📊</span>
+                        How will you measure it?
+                      </label>
+                      <button
+                        type="button"
+                        className="btn-suggest"
+                        onClick={() => handleSuggestField('metric')}
+                        disabled={loadingSuggestions !== null}
+                      >
+                        {loadingSuggestions === 'metric' ? '...' : '✨ Suggest'}
+                      </button>
+                    </div>
                     <input
                       className="wizard-field-input"
                       type="text"
@@ -992,17 +1083,63 @@ export function App() {
                   </div>
 
                   <div className="wizard-clarity-field">
-                    <label className="wizard-field-label">
-                      <span className="wizard-field-label-icon">📅</span>
-                      By when?
-                    </label>
-                    <input
-                      className="wizard-field-input"
-                      type="text"
-                      value={wizardData.horizon}
-                      onChange={(e) => setWizardData({ ...wizardData, horizon: e.target.value })}
-                      placeholder="e.g., End of Q1"
-                    />
+                    <div className="wizard-field-header">
+                      <label className="wizard-field-label">
+                        <span className="wizard-field-label-icon">📅</span>
+                        By when?
+                      </label>
+                      <button
+                        type="button"
+                        className="btn-suggest"
+                        onClick={() => setShowHorizonPicker(!showHorizonPicker)}
+                      >
+                        {showHorizonPicker ? 'Type instead' : '📅 Quick pick'}
+                      </button>
+                    </div>
+
+                    {showHorizonPicker ? (
+                      <div className="horizon-picker">
+                        <div className="horizon-chips">
+                          {[
+                            { days: 3, label: '3 days' },
+                            { days: 7, label: '1 week' },
+                            { days: 14, label: '2 weeks' },
+                            { days: 28, label: '4 weeks' },
+                          ].map((option) => (
+                            <button
+                              key={option.days}
+                              type="button"
+                              className={`horizon-chip ${wizardData.horizon === option.label ? 'horizon-chip-selected' : ''}`}
+                              onClick={() => handleSelectHorizonChip(option.days)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            className={`horizon-chip ${wizardData.horizon === 'End of month' ? 'horizon-chip-selected' : ''}`}
+                            onClick={() => handleSelectHorizonRelative('month')}
+                          >
+                            End of month
+                          </button>
+                          <button
+                            type="button"
+                            className={`horizon-chip ${wizardData.horizon.startsWith('End of Q') ? 'horizon-chip-selected' : ''}`}
+                            onClick={() => handleSelectHorizonRelative('quarter')}
+                          >
+                            End of quarter
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <input
+                        className="wizard-field-input"
+                        type="text"
+                        value={wizardData.horizon}
+                        onChange={(e) => setWizardData({ ...wizardData, horizon: e.target.value })}
+                        placeholder="e.g., End of Q1"
+                      />
+                    )}
                     <div className="wizard-field-hint">Set a realistic timeline</div>
                   </div>
                 </>
