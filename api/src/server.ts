@@ -25,7 +25,7 @@ app.use(cors({
     cb(new Error(`Origin ${origin} not allowed by CORS`));
   },
   methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: ["Content-Type", "X-App-Lang"],
   optionsSuccessStatus: 204,
 }));
 app.use(express.json());
