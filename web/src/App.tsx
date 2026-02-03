@@ -848,19 +848,65 @@ export function App() {
       const result = await generateSuggestions(goal);
 
       if (result.ok && result.value.suggestions.length > 0) {
-        // Find first suggestion with the requested field
-        const suggestion = result.value.suggestions.find(s => s[field]);
+        const { suggestions } = result.value;
+
+        // Debug logging (dev mode only)
+        if (import.meta.env.DEV) {
+          console.log(`[Suggest ${field}] Received ${suggestions.length} suggestions:`, suggestions);
+        }
+
+        // Strategy: First try to find a suggestion with matching kind AND populated field
+        // Then try to find suggestion with matching kind (use title as fallback)
+        // Finally try to find any suggestion with the populated field
+        let suggestion = suggestions.find(s => s.kind === field && s[field]);
+        let value: string | undefined;
+
         if (suggestion && suggestion[field]) {
+          value = suggestion[field] as string;
+          if (import.meta.env.DEV) {
+            console.log(`[Suggest ${field}] Found suggestion with kind=${field} and field populated:`, value);
+          }
+        } else {
+          // Fallback: look for suggestion with matching kind, use title
+          suggestion = suggestions.find(s => s.kind === field);
+          if (suggestion) {
+            value = suggestion.title;
+            if (import.meta.env.DEV) {
+              console.log(`[Suggest ${field}] Found suggestion with kind=${field}, using title as fallback:`, value);
+            }
+          } else {
+            // Last resort: any suggestion with the field populated
+            suggestion = suggestions.find(s => s[field]);
+            if (suggestion && suggestion[field]) {
+              value = suggestion[field] as string;
+              if (import.meta.env.DEV) {
+                console.log(`[Suggest ${field}] Found suggestion with field populated (kind mismatch):`, value);
+              }
+            }
+          }
+        }
+
+        if (value) {
           setWizardData({
             ...wizardData,
-            [field]: suggestion[field],
+            [field]: value,
           });
         } else {
-          setError(`No ${field} suggestion available`);
+          const errorMsg = `No ${field} suggestion returned — try again or enter manually`;
+          setError(errorMsg);
+          if (import.meta.env.DEV) {
+            console.warn(`[Suggest ${field}] ${errorMsg}`);
+          }
         }
+      } else {
+        setError(`No suggestions returned from API`);
       }
     } catch (err) {
-      setError(`Failed to fetch suggestion: ${err}`);
+      const errorMsg = `Failed to fetch suggestion: ${err}`;
+      setError(errorMsg);
+      if (import.meta.env.DEV) {
+        console.error(`[Suggest ${field}]`, err);
+      }
     } finally {
       setLoadingSuggestions(null);
     }
