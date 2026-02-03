@@ -47,7 +47,15 @@ const LS_USER_NAME = "user-name";
 const LS_DAILY_COMMITMENTS = "daily-commitments";
 const LS_BRIEFING_CACHE = "briefing-cache";
 const LS_BRIEFING_DISMISSED = "briefing-dismissed";
+const LS_BRIEFING_UI = "briefing-ui";
 const LS_REFLECTIONS = "reflections";
+
+type BriefingUIState = {
+  date: string;
+  isOpen: boolean;
+  lastTasksHash?: string;
+  hasUpdate?: boolean;
+};
 
 function loadSuggestionStore(): SuggestionStore {
   try {
@@ -107,6 +115,42 @@ function loadBriefingDismissed(): Record<string, boolean> {
 
 function saveBriefingDismissed(dismissed: Record<string, boolean>) {
   localStorage.setItem(LS_BRIEFING_DISMISSED, JSON.stringify(dismissed));
+}
+
+function loadBriefingUIState(): BriefingUIState {
+  try {
+    const stored = localStorage.getItem(LS_BRIEFING_UI);
+    if (!stored) {
+      return { date: getTodayKey(), isOpen: true };
+    }
+    const parsed = JSON.parse(stored);
+    // Reset state if date changed (new day)
+    if (parsed.date !== getTodayKey()) {
+      return { date: getTodayKey(), isOpen: true };
+    }
+    return parsed;
+  } catch {
+    return { date: getTodayKey(), isOpen: true };
+  }
+}
+
+function saveBriefingUIState(state: BriefingUIState) {
+  localStorage.setItem(LS_BRIEFING_UI, JSON.stringify(state));
+}
+
+function computeTasksHash(tasks: Decision[]): string {
+  // Create a lightweight hash from relevant task properties
+  const relevant = tasks.map(t =>
+    `${t.id}:${t.title}:${t.status}:${t.parentId || ''}:${t.kind || ''}:${t.outcome || ''}:${t.metric || ''}:${t.horizon || ''}`
+  ).sort().join('|');
+  // Simple hash function
+  let hash = 0;
+  for (let i = 0; i < relevant.length; i++) {
+    const char = relevant.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
 }
 
 type QuickReflection = {
@@ -260,6 +304,7 @@ export function App() {
   const [briefing, setBriefing] = useState<MorningBriefing | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingDismissed, setBriefingDismissed] = useState<Record<string, boolean>>({});
+  const [briefingUI, setBriefingUI] = useState<BriefingUIState>(loadBriefingUIState);
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -363,6 +408,52 @@ export function App() {
     setApiLanguage(language);
     saveLanguage(language);
   }, [language]);
+
+  // Watch for task changes and trigger briefing refresh or update badge
+  useEffect(() => {
+    const currentHash = computeTasksHash(decisions);
+    const todayKey = getTodayKey();
+
+    // If date changed, reset briefing UI state
+    if (briefingUI.date !== todayKey) {
+      const newUI = { date: todayKey, isOpen: true };
+      setBriefingUI(newUI);
+      saveBriefingUIState(newUI);
+      return;
+    }
+
+    // Skip if no previous hash (initial load)
+    if (!briefingUI.lastTasksHash) {
+      const newUI = { ...briefingUI, lastTasksHash: currentHash };
+      setBriefingUI(newUI);
+      saveBriefingUIState(newUI);
+      return;
+    }
+
+    // If tasks changed, handle refresh
+    if (currentHash !== briefingUI.lastTasksHash) {
+      const newUI = { ...briefingUI, lastTasksHash: currentHash };
+
+      if (briefingUI.isOpen && briefing) {
+        // If panel is open and briefing exists, debounce refresh
+        newUI.hasUpdate = true;
+        setBriefingUI(newUI);
+        saveBriefingUIState(newUI);
+
+        // Debounced refresh
+        const timer = setTimeout(() => {
+          handleBriefingRefresh();
+        }, 500);
+
+        return () => clearTimeout(timer);
+      } else {
+        // If panel is closed, just set update badge
+        newUI.hasUpdate = true;
+        setBriefingUI(newUI);
+        saveBriefingUIState(newUI);
+      }
+    }
+  }, [decisions, briefingUI, briefing]);
 
   const handleAdd = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -647,11 +738,61 @@ export function App() {
   };
 
   const handleDismissBriefing = () => {
+    // Collapse the briefing panel (doesn't permanently dismiss)
+    const newUI = { ...briefingUI, isOpen: false };
+    setBriefingUI(newUI);
+    saveBriefingUIState(newUI);
+  };
+
+  const handleOpenBriefing = () => {
+    // Open the briefing panel and clear update badge
+    const newUI = { ...briefingUI, isOpen: true, hasUpdate: false };
+    setBriefingUI(newUI);
+    saveBriefingUIState(newUI);
+
+    // If no briefing exists, fetch it
+    if (!briefing) {
+      handleBriefing();
+    }
+  };
+
+  const handleBriefingRefresh = async () => {
     const todayKey = getTodayKey();
-    const newDismissed = { ...briefingDismissed, [todayKey]: true };
-    setBriefingDismissed(newDismissed);
-    saveBriefingDismissed(newDismissed);
-    setBriefing(null);
+
+    // Clear the cache to force refresh
+    const newCache = { ...briefingCache };
+    delete newCache[todayKey];
+    setBriefingCache(newCache);
+    saveBriefingCache(newCache);
+
+    // Clear update badge
+    const newUI = { ...briefingUI, hasUpdate: false };
+    setBriefingUI(newUI);
+    saveBriefingUIState(newUI);
+
+    // Fetch fresh briefing
+    setBriefingLoading(true);
+    setError(null);
+
+    const goalReflections = Object.values(reflectionStore);
+    const quickReflections = reflectionsStore.quick.map((qr) => ({
+      decisionId: qr.goalId || 0,
+      createdAt: qr.date,
+      answers: [{ promptId: qr.promptId, value: qr.response }],
+    }));
+
+    const allReflections = [...goalReflections, ...quickReflections];
+    const result = await fetchBriefing(allReflections.length > 0 ? allReflections : undefined, userName || undefined);
+    setBriefingLoading(false);
+
+    if (result.ok) {
+      setBriefing(result.value);
+      newCache[todayKey] = result.value;
+      setBriefingCache(newCache);
+      saveBriefingCache(newCache);
+    } else {
+      setError(result.error.message);
+    }
   };
 
   const handleReflectionSubmit = async () => {
@@ -1424,7 +1565,17 @@ export function App() {
 
       <div className="header-row">
         <h1>Decisions</h1>
-        <button className="btn btn-reset" disabled={busy} onClick={handleReset}>Reset</button>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            className="btn btn-coach"
+            onClick={handleOpenBriefing}
+            disabled={busy}
+          >
+            🎯 Coach
+            {briefingUI.hasUpdate && <span className="coach-badge">Updated</span>}
+          </button>
+          <button className="btn btn-reset" disabled={busy} onClick={handleReset}>Reset</button>
+        </div>
       </div>
 
       <div className="filters">
@@ -1439,7 +1590,7 @@ export function App() {
         ))}
       </div>
 
-      {!briefingDismissed[getTodayKey()] && (
+      {briefingUI.isOpen && (
         <div className="daily-briefing-card">
           {!briefing ? (
             <div className="briefing-prompt">
@@ -1469,7 +1620,7 @@ export function App() {
                   <button
                     className="btn btn-dismiss-briefing"
                     onClick={handleDismissBriefing}
-                    title="Hide until tomorrow"
+                    title="Close briefing"
                   >
                     ×
                   </button>
