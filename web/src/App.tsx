@@ -10,6 +10,7 @@ import {
   resetDecisions,
   fetchBriefing,
   submitReflection,
+  setApiLanguage,
   type Decision,
   type DecisionPatch,
   type Suggestion,
@@ -20,6 +21,7 @@ import {
   type BriefingFocusItem,
   type ReflectionInput,
 } from "./api";
+import { detectLanguage, saveLanguage, t, type Language } from "./i18n";
 
 const FILTERS = ["all", "todo", "in-progress", "done"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -291,6 +293,7 @@ export function App() {
   } | null>(null);
   const [reflectionSignals, setReflectionSignals] = useState<string[]>([]);
   const [reflectionNote, setReflectionNote] = useState("");
+  const [language, setLanguage] = useState<Language>(() => detectLanguage());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -354,6 +357,12 @@ export function App() {
     // Calculate streak
     calculateStreak();
   }, [calculateStreak]);
+
+  // Update API language when language changes
+  useEffect(() => {
+    setApiLanguage(language);
+    saveLanguage(language);
+  }, [language]);
 
   const handleAdd = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1007,6 +1016,24 @@ export function App() {
 
   return (
     <div className="container">
+      {/* Language Switcher */}
+      <div className="lang-switcher">
+        <button
+          className={`lang-btn ${language === 'en' ? 'lang-btn-active' : ''}`}
+          onClick={() => setLanguage('en')}
+          aria-label="Switch to English"
+        >
+          {t('lang.en', language)}
+        </button>
+        <button
+          className={`lang-btn ${language === 'de' ? 'lang-btn-active' : ''}`}
+          onClick={() => setLanguage('de')}
+          aria-label="Switch to German"
+        >
+          {t('lang.de', language)}
+        </button>
+      </div>
+
       {showNamePrompt && (
         <div className="name-prompt-overlay">
           <div className="name-prompt-modal">

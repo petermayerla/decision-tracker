@@ -1,5 +1,20 @@
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3333";
 
+// Language header for LLM output
+let currentLanguage: string = 'en';
+
+export function setApiLanguage(lang: string): void {
+  currentLanguage = lang;
+}
+
+function getHeaders(includeLanguage = false): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (includeLanguage) {
+    headers["X-App-Lang"] = currentLanguage;
+  }
+  return headers;
+}
+
 type Decision = {
   id: number;
   title: string;
@@ -93,7 +108,7 @@ export async function fetchDecisions(status?: string): Promise<ApiResult<Decisio
 export async function addDecision(title: string, opts?: { parentId?: number; kind?: "goal" | "action" }): Promise<ApiResult<Decision>> {
   const res = await fetch(`${BASE}/tasks`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(false),
     body: JSON.stringify({ title, ...opts }),
   });
   return res.json();
@@ -102,7 +117,7 @@ export async function addDecision(title: string, opts?: { parentId?: number; kin
 export async function patchDecision(id: number, patch: DecisionPatch): Promise<ApiResult<Decision>> {
   const res = await fetch(`${BASE}/tasks/${id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(false),
     body: JSON.stringify(patch),
   });
   return res.json();
@@ -111,7 +126,7 @@ export async function patchDecision(id: number, patch: DecisionPatch): Promise<A
 export async function generateSuggestions(decision: Decision, reflections?: Reflection[]): Promise<ApiResult<{ suggestions: RawSuggestion[] }>> {
   const res = await fetch(`${BASE}/suggestions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true), // Include language header for LLM output
     body: JSON.stringify({
       id: decision.id,
       title: decision.title,
@@ -138,7 +153,7 @@ export async function completeDecision(id: number): Promise<ApiResult<Decision>>
 export async function fetchBriefing(reflections?: Reflection[], userName?: string): Promise<ApiResult<MorningBriefing>> {
   const res = await fetch(`${BASE}/briefing`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(true), // Include language header for LLM output
     body: JSON.stringify({
       reflections: reflections && reflections.length > 0 ? reflections : undefined,
       userName,
@@ -155,7 +170,7 @@ export async function resetDecisions(): Promise<ApiResult<Decision[]>> {
 export async function submitReflection(input: ReflectionInput): Promise<ApiResult<ReflectionData>> {
   const res = await fetch(`${BASE}/reflections`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getHeaders(false),
     body: JSON.stringify(input),
   });
   return res.json();

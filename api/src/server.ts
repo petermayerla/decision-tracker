@@ -129,6 +129,10 @@ app.post("/suggestions", async (req, res) => {
     res.status(400).json({ ok: false, error: { code: "BAD_REQUEST", message: "id and title are required" } });
     return;
   }
+
+  // Read language header for LLM output
+  const outputLanguage = (req.headers['x-app-lang'] as string) || 'en';
+
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allDecisions = listResult.ok ? listResult.value : [];
@@ -177,6 +181,7 @@ app.post("/suggestions", async (req, res) => {
     allDecisions,
     allReflections.length > 0 ? allReflections : undefined,
     suggestionHistory,
+    outputLanguage,
   );
   res.json({ ok: true, value: { suggestions } });
 });
@@ -194,6 +199,9 @@ app.get("/suggestions", (req, res) => {
 });
 
 app.post("/briefing", async (req, res) => {
+  // Read language header for LLM output
+  const outputLanguage = (req.headers['x-app-lang'] as string) || 'en';
+
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allTasks = listResult.ok ? listResult.value : [];
@@ -228,7 +236,7 @@ app.post("/briefing", async (req, res) => {
   });
 
   const userName = typeof req.body.userName === "string" ? req.body.userName : undefined;
-  const briefing = await generateBriefingLLM(allTasks, reflectionsInput, userName);
+  const briefing = await generateBriefingLLM(allTasks, reflectionsInput, userName, outputLanguage);
   res.json({ ok: true, value: briefing });
 });
 

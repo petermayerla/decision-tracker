@@ -473,6 +473,7 @@ You receive:
 - reflections (optional): past reflection entries for this decision and/or its actions
   Each reflection includes short answers like: "clear_step", "enough_time", "context_switching", "low_energy", "unclear_action", plus optional note text.
 - suggestionHistory (optional): previously shown suggestions for this decision (title + kind + lifecycle: new/applied/dismissed)
+- outputLanguage: language code (e.g., "en", "de") for all user-facing text
 
 Hard goals:
 1) Be specific to THIS decision NOW. No generic advice.
@@ -513,6 +514,7 @@ Output rules:
 - Each "rationale" must explain why this helps THIS decision NOW (1–2 sentences).
 - Only include outcome/metric/horizon fields if you propose a concrete value.
 - Never mention being an AI. Never explain your reasoning process.
+- All user-facing strings (title, rationale, outcome, metric, horizon) MUST be written in outputLanguage.
 
 Schema per suggestion:
 {
@@ -530,7 +532,7 @@ type ReflectionInput = {
   answers: { promptId: string; value: string }[];
 };
 
-function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[], reflections?: ReflectionInput[], suggestionHistory?: unknown[]): string {
+function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[], reflections?: ReflectionInput[], suggestionHistory?: unknown[], outputLanguage: string = 'en'): string {
   // Current decision
   const current = JSON.stringify(decision, null, 2);
 
@@ -548,7 +550,7 @@ function buildUserPrompt(decision: DecisionInput, allDecisions: DecisionInput[],
     ? JSON.stringify(others, null, 2)
     : "[]";
 
-  let prompt = `currentDecision:\n${current}\n\nsiblingActions:\n${siblingsJson}\n\notherDecisions:\n${otherJson}`;
+  let prompt = `currentDecision:\n${current}\n\nsiblingActions:\n${siblingsJson}\n\notherDecisions:\n${otherJson}\n\noutputLanguage: ${outputLanguage}`;
 
   if (reflections && reflections.length > 0) {
     prompt += `\n\nreflections:\n${JSON.stringify(reflections, null, 2)}`;
@@ -593,6 +595,7 @@ export async function generateSuggestionsLLM(
   allDecisions: DecisionInput[] = [],
   reflections?: ReflectionInput[],
   suggestionHistory?: unknown[],
+  outputLanguage: string = 'en',
 ): Promise<Suggestion[]> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -608,7 +611,7 @@ export async function generateSuggestionsLLM(
       model: process.env.ANTHROPIC_DEFAULT_SONNET_MODEL || "claude-sonnet-4-20250514",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions, reflections, suggestionHistory) }],
+      messages: [{ role: "user", content: buildUserPrompt(decision, allDecisions, reflections, suggestionHistory, outputLanguage) }],
     });
 
     const textBlock = message.content.find((b) => b.type === "text");
