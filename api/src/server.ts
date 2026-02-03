@@ -8,6 +8,39 @@ import { generateSuggestionsLLM } from "./decision-suggestions.js";
 import { generateBriefingLLM } from "./morning-briefing.js";
 import { appendReflection, listReflections } from "./reflections-store.js";
 
+/**
+ * Infer output language from user input text using simple heuristics
+ * @param texts - Array of text samples to analyze (e.g., goal titles, outcomes, notes)
+ * @returns 'de' if German detected, 'en' otherwise
+ */
+function inferLanguageFromText(texts: (string | undefined)[]): string {
+  // German-specific characters and common words
+  const germanChars = /[äöüßÄÖÜ]/;
+  const germanWords = /\b(der|die|das|und|oder|ist|sind|werden|wurde|haben|hat|sein|nicht|auch|auf|für|mit|von|zu|im|am|zum|zur|den|dem|des|ein|eine|einem|einer|eines)\b/i;
+
+  let germanScore = 0;
+  let totalTexts = 0;
+
+  for (const text of texts) {
+    if (!text || typeof text !== 'string' || text.trim().length === 0) continue;
+    totalTexts++;
+
+    // Check for German-specific characters
+    if (germanChars.test(text)) {
+      germanScore += 3; // Strong signal
+    }
+
+    // Check for German words (2+ matches = likely German)
+    const matches = text.match(germanWords);
+    if (matches && matches.length >= 2) {
+      germanScore += 2;
+    }
+  }
+
+  // If we found German indicators in at least one text, consider it German
+  return germanScore >= 2 ? 'de' : 'en';
+}
+
 const app = express();
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -130,8 +163,22 @@ app.post("/suggestions", async (req, res) => {
     return;
   }
 
-  // Read language header for LLM output
-  const outputLanguage = (req.headers['x-app-lang'] as string) || 'en';
+  // Infer language from user input (X-App-Lang header can override)
+  const headerLang = req.headers['x-app-lang'] as string;
+  let outputLanguage = 'en';
+
+  if (headerLang === 'de' || headerLang === 'en') {
+    outputLanguage = headerLang;
+  } else {
+    // Infer from recent user input
+    const textsToAnalyze = [
+      title,
+      req.body.outcome,
+      req.body.metric,
+      req.body.horizon,
+    ];
+    outputLanguage = inferLanguageFromText(textsToAnalyze);
+  }
 
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
@@ -199,12 +246,26 @@ app.get("/suggestions", (req, res) => {
 });
 
 app.post("/briefing", async (req, res) => {
-  // Read language header for LLM output
-  const outputLanguage = (req.headers['x-app-lang'] as string) || 'en';
-
   const tracker = loadTracker();
   const listResult = tracker.listTasks();
   const allTasks = listResult.ok ? listResult.value : [];
+
+  // Infer language from user input (X-App-Lang header can override)
+  const headerLang = req.headers['x-app-lang'] as string;
+  let outputLanguage = 'en';
+
+  if (headerLang === 'de' || headerLang === 'en') {
+    outputLanguage = headerLang;
+  } else {
+    // Infer from recent tasks and reflections
+    const textsToAnalyze = allTasks.flatMap(t => [
+      t.title,
+      t.outcome,
+      t.metric,
+      t.horizon,
+    ]);
+    outputLanguage = inferLanguageFromText(textsToAnalyze);
+  }
 
   // Load reflections from store (last 14 days)
   const storedReflections = listReflections({ sinceDays: 14 });

@@ -10,7 +10,6 @@ import {
   resetDecisions,
   fetchBriefing,
   submitReflection,
-  setApiLanguage,
   type Decision,
   type DecisionPatch,
   type Suggestion,
@@ -21,7 +20,7 @@ import {
   type BriefingFocusItem,
   type ReflectionInput,
 } from "./api";
-import { detectLanguage, saveLanguage, t, type Language } from "./i18n";
+// Language removed - UI always in English, backend infers from user input
 
 const FILTERS = ["all", "todo", "in-progress", "done"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -338,7 +337,6 @@ export function App() {
   } | null>(null);
   const [reflectionSignals, setReflectionSignals] = useState<string[]>([]);
   const [reflectionNote, setReflectionNote] = useState("");
-  const [language, setLanguage] = useState<Language>(() => detectLanguage());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const updateSuggestionStore = useCallback((updater: (prev: SuggestionStore) => SuggestionStore) => {
@@ -402,12 +400,6 @@ export function App() {
     // Calculate streak
     calculateStreak();
   }, [calculateStreak]);
-
-  // Update API language when language changes
-  useEffect(() => {
-    setApiLanguage(language);
-    saveLanguage(language);
-  }, [language]);
 
   // Watch for task changes and trigger briefing refresh or update badge
   useEffect(() => {
@@ -744,14 +736,15 @@ export function App() {
     saveBriefingUIState(newUI);
   };
 
-  const handleOpenBriefing = () => {
-    // Open the briefing panel and clear update badge
-    const newUI = { ...briefingUI, isOpen: true, hasUpdate: false };
+  const handleToggleBriefing = () => {
+    // Toggle the briefing panel open/closed
+    const newIsOpen = !briefingUI.isOpen;
+    const newUI = { ...briefingUI, isOpen: newIsOpen, hasUpdate: false };
     setBriefingUI(newUI);
     saveBriefingUIState(newUI);
 
-    // If no briefing exists, fetch it
-    if (!briefing) {
+    // If opening and no briefing exists, fetch it
+    if (newIsOpen && !briefing) {
       handleBriefing();
     }
   };
@@ -1157,24 +1150,6 @@ export function App() {
 
   return (
     <div className="container">
-      {/* Language Switcher */}
-      <div className="lang-switcher">
-        <button
-          className={`lang-btn ${language === 'en' ? 'lang-btn-active' : ''}`}
-          onClick={() => setLanguage('en')}
-          aria-label="Switch to English"
-        >
-          {t('lang.en', language)}
-        </button>
-        <button
-          className={`lang-btn ${language === 'de' ? 'lang-btn-active' : ''}`}
-          onClick={() => setLanguage('de')}
-          aria-label="Switch to German"
-        >
-          {t('lang.de', language)}
-        </button>
-      </div>
-
       {showNamePrompt && (
         <div className="name-prompt-overlay">
           <div className="name-prompt-modal">
@@ -1568,7 +1543,7 @@ export function App() {
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             className="btn btn-coach"
-            onClick={handleOpenBriefing}
+            onClick={handleToggleBriefing}
             disabled={busy}
           >
             🎯 Coach
@@ -1618,11 +1593,12 @@ export function App() {
                     </div>
                   )}
                   <button
-                    className="btn btn-dismiss-briefing"
-                    onClick={handleDismissBriefing}
-                    title="Close briefing"
+                    className="btn btn-refresh-briefing"
+                    onClick={handleBriefingRefresh}
+                    disabled={briefingLoading}
+                    title="Refresh briefing with latest goals"
                   >
-                    ×
+                    🔄 Refresh
                   </button>
                 </div>
               </div>
